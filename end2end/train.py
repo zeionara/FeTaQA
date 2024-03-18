@@ -398,6 +398,7 @@ def main(model_args, data_args, training_args):
                 )
                 test_preds = [pred.strip() for pred in test_preds]
                 output_test_preds_file = os.path.join(training_args.output_dir, "test_preds_seq2seq.txt")
+                print('saving predictions to', output_test_preds_file)
                 with open(output_test_preds_file, "w") as writer:
                     writer.write("\n".join(test_preds))
 
