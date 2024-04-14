@@ -5,12 +5,12 @@ from time import sleep
 from click import argument, group, option
 # from camelot import read_pdf
 from numpy import percentile
-# from transformers import pipeline
+from transformers import pipeline, AutoTokenizer
 from tqdm import tqdm
 from pathlib import Path
 from docx.api import Document
 
-from .util import unpack, normalize_spaces
+from .util import unpack, normalize_spaces, is_number
 from .Cell import Cell
 
 
@@ -19,12 +19,82 @@ def main():
     pass
 
 
+MAX_LENGTH = 512
+
+
 class TableTranslator:
     def __init__(self, model: str = 'Helsinki-NLP/opus-mt-ru-en'):
-        self.pipeline = pipeline('translation', model = model, framework = 'pt')
+        self.pipeline = pipeline('translation', model = model, framework = 'pt', device = 'cuda', max_length = MAX_LENGTH)
+        self.tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-ru-en")
+
+    def count(self, text: str):
+        return len(self.tokenizer(text)['input_ids'])
+
+    def _split(self, text: str):
+        text_components = text.split(' ')
+        middle_index = len(text_components) // 2
+
+        chunks = []
+
+        lhs = ' '.join(text_components[:middle_index])
+        rhs = ' '.join(text_components[middle_index:])
+
+        def push(half: str):
+            if self.count(half) > MAX_LENGTH:
+                for chunk in self._split(half):
+                    chunks.append(chunk)
+            else:
+                chunks.append(half)
+
+        push(lhs)
+        push(rhs)
+
+        # print(text)
+        # print('==')
+        # print(lhs, self.count(lhs))
+        # print('--')
+        # print(rhs, self.count(rhs))
+
+        return chunks
 
     def translate_row(self, row: list[str]):
-        return [cell['translation_text'] for cell in self.pipeline(row)]
+        merge_flags = []
+        row_chunks = []
+
+        for item in row:
+            if self.count(item) > MAX_LENGTH:
+                chunks = self._split(item)
+
+                for chunk in chunks:
+                    row_chunks.append(chunk)
+
+                merge_flags.append(False)
+                merge_flags.extend([True for _ in range(len(chunks) - 1)])
+            else:
+                row_chunks.append(item)
+                merge_flags.append(False)
+
+        translated_texts = [cell['translation_text'] for cell in self.pipeline(row_chunks)]
+        final_texts = []
+
+        last_text = None
+
+        for text, should_merge_with_last in zip(translated_texts, merge_flags):
+            if last_text is not None:
+                if should_merge_with_last:
+                    last_text = ' '.join((last_text, text))
+                    print(last_text)
+                else:
+                    final_texts.append(last_text)
+                    last_text = text
+            else:
+                last_text = text
+
+        final_texts.append(last_text)
+
+        print(len(final_texts), len(translated_texts))
+
+        return final_texts
 
     def translate(self, table: list[list[str]]):
         translated_table = []
@@ -43,6 +113,68 @@ def unpack_(source: str, destination: str):
         destination = os.path.join('assets', Path(source).stem)
 
     unpack(source, destination)
+
+
+@main.command()
+@argument('source', type = str)
+@argument('destination', type = str)
+@option('--first-n', '-n', type = int, required = False)
+def translate(source: str, destination: str, first_n: int):
+    print('Collecting texts...')
+
+    if not os.path.isdir(destination):
+        os.makedirs(destination)
+
+    texts = []
+    tables = []
+
+    source_files = os.listdir(source)
+
+    if first_n is not None:
+        source_files = source_files[:first_n]
+
+    for source_file in source_files:
+        with open(os.path.join(source, source_file), 'r') as file:
+            table = json.load(file)
+
+            for row in table['rows']:
+                for cell in row:
+                    if (text := cell.get('text')) is not None and len(text) > 0 and not is_number(text):
+                        texts.append(text)
+                        cell['_requires-translation'] = True
+                    else:
+                        cell['_requires-translation'] = False
+
+            table['_filename'] = source_file
+
+            tables.append(table)
+
+    # print(len(texts))
+    # print(tables[0])
+
+    print('Translating...')
+
+    translator = TableTranslator()
+
+    translated_texts = translator.translate_row(texts)
+
+    with open('assets/new-specs/translation-log.txt', 'w') as file:
+        for text, translated_text in zip(texts, translated_texts):
+            file.write(f'{text} 🔴 {translated_text}\n')
+
+    offset = 0
+
+    for table in tables:
+        for row in table['rows']:
+            for cell in row:
+                if cell.pop('_requires-translation'):
+                    cell['text'] = translated_texts[offset]
+                    offset += 1
+
+        filename = table.pop('_filename')
+
+        with open(os.path.join(destination, filename), 'w') as file:
+            json.dump(table, file, indent = 2, ensure_ascii = False)
 
 
 @main.command()
