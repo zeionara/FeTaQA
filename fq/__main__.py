@@ -9,6 +9,7 @@ from transformers import pipeline, AutoTokenizer
 from tqdm import tqdm
 from pathlib import Path
 from docx.api import Document
+from numpy import percentile
 
 from .util import unpack, normalize_spaces, is_number
 from .Cell import Cell
@@ -83,7 +84,7 @@ class TableTranslator:
             if last_text is not None:
                 if should_merge_with_last:
                     last_text = ' '.join((last_text, text))
-                    print(last_text)
+                    # print(last_text)
                 else:
                     final_texts.append(last_text)
                     last_text = text
@@ -92,7 +93,7 @@ class TableTranslator:
 
         final_texts.append(last_text)
 
-        print(len(final_texts), len(translated_texts))
+        # print(len(final_texts), len(translated_texts))
 
         return final_texts
 
@@ -103,6 +104,57 @@ class TableTranslator:
             translated_table.append(self.translate_row(row))
 
         return translated_table
+
+
+@main.command()
+@argument('path', type = str)
+def stats(path: str):
+    n_tables = 0
+
+    n_cells_ = []
+    n_rows_ = []
+    n_cols_ = []
+    n_chars_ = []
+
+    for file in os.listdir(path):
+        with open(os.path.join(path, file), 'r') as file:
+            n_tables += 1
+            table = json.load(file)
+
+            n_cells = 0
+            n_rows = 0
+            n_cols = 0
+
+            for row in table['rows']:
+                n_rows += 1
+
+                n_cols_local = 0
+
+                for cell in row:
+                    if (cell_text := cell.get('text')) is not None:
+                        n_cols_local += 1
+                        # print(cell_text)
+                        n_chars_.append(len(cell_text))
+
+                n_cells += (n_cols_local := len([cell for cell in row if 'text' in cell]))  # if 'text' not in cell then it is a placeholder
+
+                if n_cols_local > n_cols:
+                    n_cols = n_cols_local
+
+            n_rows_.append(n_rows)
+            n_cols_.append(n_cols)
+            n_cells_.append(n_cells)
+
+    def print_percentiles(label: str, data: list):
+        percentiles = ' '.join(map(''.join, zip(('5%: ', '25%: ', '50%: ', '75%: ', '95%: '), map(lambda value: f'{value:.3f}', percentile(data, (5, 25, 50, 75, 95))))))
+        print(f'{label}: {percentiles}')
+
+    print('Number of tables:', n_tables)
+
+    print_percentiles('Number of cells', n_cells_)
+    print_percentiles('Number of rows', n_rows_)
+    print_percentiles('Number of columns', n_cols_)
+    print_percentiles('Text length', n_chars_)
 
 
 @main.command(name = 'unpack')
