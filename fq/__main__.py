@@ -1,8 +1,17 @@
+import os
+import json
+from time import sleep
+
 from click import argument, group, option
-from camelot import read_pdf
+# from camelot import read_pdf
 from numpy import percentile
-from transformers import pipeline
+# from transformers import pipeline
 from tqdm import tqdm
+from pathlib import Path
+from docx.api import Document
+
+from .util import unpack, normalize_spaces
+from .Cell import Cell
 
 
 @group()
@@ -24,6 +33,84 @@ class TableTranslator:
             translated_table.append(self.translate_row(row))
 
         return translated_table
+
+
+@main.command(name = 'unpack')
+@argument('source', type = str)
+@argument('destination', type = str, required = False)
+def unpack_(source: str, destination: str):
+    if destination is None:
+        destination = os.path.join('assets', Path(source).stem)
+
+    unpack(source, destination)
+
+
+@main.command()
+@argument('source', type = str)
+@argument('destination', type = str)
+def parse(source: str, destination: str):
+    for source_file in tqdm(os.listdir(source)):
+        document = Document(os.path.join(source, source_file))
+
+        if not os.path.isdir(destination):
+            os.makedirs(destination)
+
+        for i, table in enumerate(document.tables):
+            parsed_rows = []
+            destination_file = os.path.join(destination, f'{Path(source_file).stem}.{i}'.replace(' ', '_')) + '.json'
+
+            if os.path.isfile(destination_file):
+                continue
+
+            try:
+                rows = table.rows
+            except:
+                print(f'Error when parsing table {i} from file {source_file}. Skipping...')
+                continue
+
+            skip_table = False
+
+            for row in rows:
+                parsed_cells = []
+
+                try:
+                    cells = row.cells
+                except:
+                    print(f'Error when parsing table {i} from file {source_file}. Skipping...')
+                    skip_table = True
+                    break
+
+                for cell in cells:
+                    # print(dir(cell))
+                    # print(cell._element.xml)
+
+                    parsed_cells.append(Cell(normalize_spaces(cell.text)))
+
+                try:
+                    parsed_rows.append(Cell.merge_horizontally(parsed_cells))
+                except:
+                    print(f'Error when merging horizontally on file {source_file}')
+
+            if skip_table:
+                continue
+
+            try:
+                parsed_rows = Cell.merge_vertically(parsed_rows)
+            except:
+                print(f'Error when merging vertically on file {source_file}')
+
+            # for row in parsed_rows:
+            #     print(row)
+
+            # print(source)
+
+            # print(Cell.serialize_rows(parsed_rows))
+
+            # i = 0
+
+
+            with open(destination_file, 'w') as file:
+                json.dump(Cell.serialize_rows(parsed_rows), file, indent = 2, ensure_ascii = False)
 
 
 @main.command()
