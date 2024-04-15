@@ -1,4 +1,5 @@
 import os
+from os import environ as env
 import json
 from time import sleep
 
@@ -10,6 +11,9 @@ from tqdm import tqdm
 from pathlib import Path
 from docx.api import Document
 from numpy import percentile
+from requests import post
+
+from fp.fp import FreeProxy
 
 from .util import unpack, normalize_spaces, is_number
 from .Cell import Cell
@@ -21,6 +25,21 @@ def main():
 
 
 MAX_LENGTH = 512
+BARD_API_KEY = env.get('BARD_API_KEY')
+
+QUESTION_GENERATION_TASK_DESCRIPTION = (
+    'There is a table represented as a nested python list. The outer list corresponds to the list of rows, and the inner lists correspond to the lists of cells for each row. '
+    'For each cell there is a number of columns which the cell spans represented by property "cols" and the number of spanned rows represented by property "rows". '
+    'If cell spans multiple rows, only entry for the topmost row is filled with the cell content, the cell occurrences on other rows are replaced with a placeholder, '
+    'which refers to the anchor entry using the attribute "id". Your task is to generate a question-answer pair based on information provided in this table. '
+    'In other words, you should generate a question which may be answered using only information presented in this table, and provide the correct answer. '
+    'The question must not be about table structure, but about table content. '
+    'Please, precede the generated question with prefix "QUESTION: " and precede the correct answer with prefix "ANSWER: "'
+)
+QUESTION_GENERATION_PROMPT = '{task}\n\nTABLE: {table}'
+
+
+print(len(QUESTION_GENERATION_TASK_DESCRIPTION))
 
 
 class TableTranslator:
@@ -108,6 +127,87 @@ class TableTranslator:
 
 @main.command()
 @argument('path', type = str)
+def make_questions(path: str):
+    with open(path, 'r') as file:
+        table = json.load(file)
+
+    prompt = QUESTION_GENERATION_PROMPT.format(
+        task = QUESTION_GENERATION_TASK_DESCRIPTION,
+        table = json.dumps(table['rows'], ensure_ascii = False, indent = 2)
+    )
+
+    # print(prompt)
+
+    response = post(
+        'https://api.mistral.ai/v1/chat/completions',
+        json = {
+            'model': 'mistral-small-latest',
+            'messages': [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+            # "temperature": 0.7,
+            # "top_p": 1
+            # "max_tokens": 512,
+            # "stream": False,
+            # "safe_prompt": False,
+            # "random_seed": 17
+        }
+    )
+
+    print(response.json())
+
+    # response = post(
+    #     'http://normax:8000/v1/chat/completions',
+    #     json = {
+    #         'model': 'openchat_3.5',
+    #         'messages': [
+    #             {
+    #                 'role': 'user',
+    #                 'content': prompt
+    #             }
+    #         ]
+    #     }
+    # )
+
+    # print(response.json()['choices'][0]['message']['content'])
+
+    # http_proxy = FreeProxy(country_id = 'US', https = True).get()
+    # https_proxy = FreeProxy(country_id = 'US', https = True).get()
+
+    # https_proxy = 'https://54.212.22.168:1080'
+
+    # print('got proxy')
+
+    # response = post(
+    #     f'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={BARD_API_KEY}',
+    #     json = {
+    #         'contents': [
+    #             {
+    #                 'role': 'user',
+    #                 'parts': [
+    #                     {
+    #                         'text': 'Give me five subcategories of jazz?'
+    #                     }
+    #                 ]
+    #             }
+    #         ]
+    #     },
+    #     proxies = {
+    #         # 'http': http_proxy,
+    #         'https': https_proxy
+    #     },
+    #     verify = False
+    # )
+
+    # print(response.status_code)
+    # print(response.content)
+
+
+@main.command()
+@argument('path', type = str)
 def stats(path: str):
     n_tables = 0
 
@@ -116,10 +216,14 @@ def stats(path: str):
     n_cols_ = []
     n_chars_ = []
 
+    total_length = 0
+
     for file in os.listdir(path):
         with open(os.path.join(path, file), 'r') as file:
             n_tables += 1
             table = json.load(file)
+
+            total_length += len(json.dumps(table, ensure_ascii = False, indent = 2))
 
             n_cells = 0
             n_rows = 0
@@ -150,6 +254,7 @@ def stats(path: str):
         print(f'{label}: {percentiles}')
 
     print('Number of tables:', n_tables)
+    print('Total length:', total_length)
 
     print_percentiles('Number of cells', n_cells_)
     print_percentiles('Number of rows', n_rows_)

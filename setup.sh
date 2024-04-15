@@ -33,7 +33,7 @@ conda activate tables
 conda install python-lsp-server -y
 conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
 
-pip install transformers nltk numpy datasets chardet transformers accelerate sacrebleu bert_score 'camelot-py[cv]' python-docx
+pip install transformers nltk numpy datasets chardet transformers accelerate sacrebleu bert_score 'camelot-py[cv]' python-docx free-proxy
 pip install git+https://github.com/google-research/bleurt.git
 
 # To install ghostscript see: https://ghostscript.readthedocs.io/en/gs10.03.0/Install.html and https://ghostscript.com/docs/9.55.0/Install.htm. Basically:
