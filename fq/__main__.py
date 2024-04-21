@@ -1,22 +1,19 @@
 import os
 from os import environ as env
 import json
-from time import sleep
+# from time import sleep
 
 from click import argument, group, option
-# from camelot import read_pdf
 from numpy import percentile
-from transformers import pipeline, AutoTokenizer
 from tqdm import tqdm
 from pathlib import Path
 from docx.api import Document
-from numpy import percentile
 from requests import post
-
-from fp.fp import FreeProxy
+# from camelot import read_pdf
 
 from .util import unpack, normalize_spaces, is_number
 from .Cell import Cell
+from .Tables import Tables
 
 
 @group()
@@ -24,7 +21,6 @@ def main():
     pass
 
 
-MAX_LENGTH = 512
 BARD_API_KEY = env.get('BARD_API_KEY')
 
 QUESTION_GENERATION_TASK_DESCRIPTION = (
@@ -39,90 +35,7 @@ QUESTION_GENERATION_TASK_DESCRIPTION = (
 QUESTION_GENERATION_PROMPT = '{task}\n\nTABLE: {table}'
 
 
-print(len(QUESTION_GENERATION_TASK_DESCRIPTION))
-
-
-class TableTranslator:
-    def __init__(self, model: str = 'Helsinki-NLP/opus-mt-ru-en'):
-        self.pipeline = pipeline('translation', model = model, framework = 'pt', device = 'cuda', max_length = MAX_LENGTH)
-        self.tokenizer = AutoTokenizer.from_pretrained("Helsinki-NLP/opus-mt-ru-en")
-
-    def count(self, text: str):
-        return len(self.tokenizer(text)['input_ids'])
-
-    def _split(self, text: str):
-        text_components = text.split(' ')
-        middle_index = len(text_components) // 2
-
-        chunks = []
-
-        lhs = ' '.join(text_components[:middle_index])
-        rhs = ' '.join(text_components[middle_index:])
-
-        def push(half: str):
-            if self.count(half) > MAX_LENGTH:
-                for chunk in self._split(half):
-                    chunks.append(chunk)
-            else:
-                chunks.append(half)
-
-        push(lhs)
-        push(rhs)
-
-        # print(text)
-        # print('==')
-        # print(lhs, self.count(lhs))
-        # print('--')
-        # print(rhs, self.count(rhs))
-
-        return chunks
-
-    def translate_row(self, row: list[str]):
-        merge_flags = []
-        row_chunks = []
-
-        for item in row:
-            if self.count(item) > MAX_LENGTH:
-                chunks = self._split(item)
-
-                for chunk in chunks:
-                    row_chunks.append(chunk)
-
-                merge_flags.append(False)
-                merge_flags.extend([True for _ in range(len(chunks) - 1)])
-            else:
-                row_chunks.append(item)
-                merge_flags.append(False)
-
-        translated_texts = [cell['translation_text'] for cell in self.pipeline(row_chunks)]
-        final_texts = []
-
-        last_text = None
-
-        for text, should_merge_with_last in zip(translated_texts, merge_flags):
-            if last_text is not None:
-                if should_merge_with_last:
-                    last_text = ' '.join((last_text, text))
-                    # print(last_text)
-                else:
-                    final_texts.append(last_text)
-                    last_text = text
-            else:
-                last_text = text
-
-        final_texts.append(last_text)
-
-        # print(len(final_texts), len(translated_texts))
-
-        return final_texts
-
-    def translate(self, table: list[list[str]]):
-        translated_table = []
-
-        for row in tqdm(table, desc = 'Translating table'):
-            translated_table.append(self.translate_row(row))
-
-        return translated_table
+# print(len(QUESTION_GENERATION_TASK_DESCRIPTION))
 
 
 @main.command()
@@ -209,57 +122,59 @@ def make_questions(path: str):
 @main.command()
 @argument('path', type = str)
 def stats(path: str):
-    n_tables = 0
+    Tables.from_dir(path).stats.print()
 
-    n_cells_ = []
-    n_rows_ = []
-    n_cols_ = []
-    n_chars_ = []
+    # n_tables = 0
 
-    total_length = 0
+    # n_cells_ = []
+    # n_rows_ = []
+    # n_cols_ = []
+    # n_chars_ = []
 
-    for file in os.listdir(path):
-        with open(os.path.join(path, file), 'r') as file:
-            n_tables += 1
-            table = json.load(file)
+    # total_length = 0
 
-            total_length += len(json.dumps(table, ensure_ascii = False, indent = 2))
+    # for file in os.listdir(path):
+    #     with open(os.path.join(path, file), 'r') as file:
+    #         n_tables += 1
+    #         table = json.load(file)
 
-            n_cells = 0
-            n_rows = 0
-            n_cols = 0
+    #         total_length += len(json.dumps(table, ensure_ascii = False, indent = 2))
 
-            for row in table['rows']:
-                n_rows += 1
+    #         n_cells = 0
+    #         n_rows = 0
+    #         n_cols = 0
 
-                n_cols_local = 0
+    #         for row in table['rows']:
+    #             n_rows += 1
 
-                for cell in row:
-                    if (cell_text := cell.get('text')) is not None:
-                        n_cols_local += 1
-                        # print(cell_text)
-                        n_chars_.append(len(cell_text))
+    #             n_cols_local = 0
 
-                n_cells += (n_cols_local := len([cell for cell in row if 'text' in cell]))  # if 'text' not in cell then it is a placeholder
+    #             for cell in row:
+    #                 if (cell_text := cell.get('text')) is not None:
+    #                     n_cols_local += 1
+    #                     # print(cell_text)
+    #                     n_chars_.append(len(cell_text))
 
-                if n_cols_local > n_cols:
-                    n_cols = n_cols_local
+    #             n_cells += (n_cols_local := len([cell for cell in row if 'text' in cell]))  # if 'text' not in cell then it is a placeholder
 
-            n_rows_.append(n_rows)
-            n_cols_.append(n_cols)
-            n_cells_.append(n_cells)
+    #             if n_cols_local > n_cols:
+    #                 n_cols = n_cols_local
 
-    def print_percentiles(label: str, data: list):
-        percentiles = ' '.join(map(''.join, zip(('5%: ', '25%: ', '50%: ', '75%: ', '95%: '), map(lambda value: f'{value:.3f}', percentile(data, (5, 25, 50, 75, 95))))))
-        print(f'{label}: {percentiles}')
+    #         n_rows_.append(n_rows)
+    #         n_cols_.append(n_cols)
+    #         n_cells_.append(n_cells)
 
-    print('Number of tables:', n_tables)
-    print('Total length:', total_length)
+    # def print_percentiles(label: str, data: list):
+    #     percentiles = ' '.join(map(''.join, zip(('5%: ', '25%: ', '50%: ', '75%: ', '95%: '), map(lambda value: f'{value:.3f}', percentile(data, (5, 25, 50, 75, 95))))))
+    #     print(f'{label}: {percentiles}')
 
-    print_percentiles('Number of cells', n_cells_)
-    print_percentiles('Number of rows', n_rows_)
-    print_percentiles('Number of columns', n_cols_)
-    print_percentiles('Text length', n_chars_)
+    # print('Number of tables:', n_tables)
+    # print('Total length:', total_length)
+
+    # print_percentiles('Number of cells', n_cells_)
+    # print_percentiles('Number of rows', n_rows_)
+    # print_percentiles('Number of columns', n_cols_)
+    # print_percentiles('Text length', n_chars_)
 
 
 @main.command(name = 'unpack')
