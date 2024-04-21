@@ -31,7 +31,7 @@ conda create --name tables python=3.12 -y
 conda activate tables
 
 conda install python-lsp-server -y
-conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia
+conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia -y
 
 pip install transformers nltk numpy datasets chardet transformers accelerate sacrebleu bert_score 'camelot-py[cv]' python-docx free-proxy scikit-learn
 pip install git+https://github.com/google-research/bleurt.git
