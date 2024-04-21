@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import json
 
-from numpy import percentile
+from numpy import percentile, mean
 from pandas import DataFrame
 
 from .Table import Table
@@ -69,6 +69,12 @@ class TablesStats:
         n_chars_numeric = []
         n_chars_text = []
 
+        n_rowspans = []
+        n_colspans = []
+
+        mean_rowspans = []
+        mean_colspans = []
+
         for table in tables:
             n_tables += 1
 
@@ -89,6 +95,12 @@ class TablesStats:
             n_chars_numeric.extend(stats.n_chars_numeric)
             n_chars_text.extend(stats.n_chars_text)
 
+            n_rowspans.extend(stats.n_rowspans)
+            n_colspans.extend(stats.n_colspans)
+
+            mean_rowspans.append(stats.mean_rowspan)
+            mean_colspans.append(stats.mean_colspan)
+
         self.n_tables = n_tables
         self.total_length = total_length
 
@@ -103,6 +115,12 @@ class TablesStats:
 
         self.n_chars_numeric = n_chars_numeric
         self.n_chars_text = n_chars_text
+
+        self.n_rowspans = n_rowspans
+        self.n_colspans = n_colspans
+
+        self.mean_rowspans = mean_rowspans
+        self.mean_colspans = mean_colspans
 
     @property
     def total_length_as_str(self):
@@ -166,20 +184,32 @@ class TablesStats:
         # print_percentiles('Text length', self.n_chars)
 
         stats = add_percentiles(
-            'Text cell length', self.n_chars_text,
+            'Mean colspan', self.mean_colspans,
             add_percentiles(
-                'Numeric cell length', self.n_chars_numeric,
+                'Mean rowspan', self.mean_rowspans,
                 add_percentiles(
-                    'Number of text cells', self.n_text_cells,
+                    'Colspan', self.n_colspans,
                     add_percentiles(
-                        'Number of numeric cells', self.n_numeric_cells,
+                        'Rowspan', self.n_rowspans,
                         add_percentiles(
-                            'Text length', self.n_chars,
+                            'Text cell length', self.n_chars_text,
                             add_percentiles(
-                                'Number of columns', self.n_cols,
+                                'Numeric cell length', self.n_chars_numeric,
                                 add_percentiles(
-                                    'Number of rows', self.n_rows,
-                                    add_percentiles('Number of cells', self.n_cells)
+                                    'Number of text cells', self.n_text_cells,
+                                    add_percentiles(
+                                        'Number of numeric cells', self.n_numeric_cells,
+                                        add_percentiles(
+                                            'Text length', self.n_chars,
+                                            add_percentiles(
+                                                'Number of columns', self.n_cols,
+                                                add_percentiles(
+                                                    'Number of rows', self.n_rows,
+                                                    add_percentiles('Number of cells', self.n_cells)
+                                                )
+                                            )
+                                        )
+                                    )
                                 )
                             )
                         )

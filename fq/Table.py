@@ -1,5 +1,7 @@
 import json
 
+from numpy import mean
+
 from .util import is_number
 
 
@@ -40,6 +42,9 @@ class TableStats:
         n_chars_numeric = []
         n_chars_text = []
 
+        n_rowspans = []
+        n_colspans = []
+
         for row in table.data['rows']:
             n_rows += 1
 
@@ -54,7 +59,6 @@ class TableStats:
                     n_chars.append(cell_length := len(cell_text))
 
                     if is_number(cell_text):
-                        # print(cell_text)
                         n_numeric_cells += 1
                         n_chars_numeric.append(cell_length)
                     elif len(cell_text) < 1:
@@ -62,6 +66,9 @@ class TableStats:
                     else:
                         n_text_cells += 1
                         n_chars_text.append(cell_length)
+
+                    n_rowspans.append(cell.get('rows'))
+                    n_colspans.append(cell.get('cols'))
 
             n_cells += n_cols_current_row_without_placeholders
 
@@ -79,3 +86,14 @@ class TableStats:
         self.n_text_cells = n_text_cells
         self.n_chars_text = n_chars_text
         self.n_empty_cells = n_empty_cells
+
+        self.n_rowspans = n_rowspans
+        self.n_colspans = n_colspans
+
+    @property
+    def mean_rowspan(self):
+        return mean(self.n_rowspans)
+
+    @property
+    def mean_colspan(self):
+        return mean(self.n_colspans)
