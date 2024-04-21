@@ -1,6 +1,8 @@
 from transformers import pipeline, AutoTokenizer
 from tqdm import tqdm
 
+from .util import unescape_translation
+
 
 MAX_LENGTH = 512
 
@@ -62,7 +64,7 @@ class TableTranslator:
                     last_text = ' '.join((last_text, text))
                     # print(last_text)
                 else:
-                    final_texts.append(last_text)
+                    final_texts.append(unescape_translation(last_text))
                     last_text = text
             else:
                 last_text = text
