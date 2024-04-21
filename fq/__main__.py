@@ -14,6 +14,7 @@ from requests import post
 from .util import unpack, normalize_spaces, is_number
 from .Cell import Cell
 from .Tables import Tables
+# from .TableTranslator import TableTranslator
 
 
 @group()

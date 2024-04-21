@@ -4,6 +4,7 @@ import os
 import json
 
 from numpy import percentile
+from pandas import DataFrame
 
 from .Table import Table
 
@@ -61,6 +62,13 @@ class TablesStats:
 
         total_length = 0
 
+        n_numeric_cells = []
+        n_text_cells = []
+        n_empty_cells = []
+
+        n_chars_numeric = []
+        n_chars_text = []
+
         for table in tables:
             n_tables += 1
 
@@ -74,6 +82,13 @@ class TablesStats:
 
             n_chars.extend(stats.n_chars)
 
+            n_numeric_cells.append(stats.n_numeric_cells)
+            n_text_cells.append(stats.n_text_cells)
+            n_empty_cells.append(stats.n_empty_cells)
+
+            n_chars_numeric.extend(stats.n_chars_numeric)
+            n_chars_text.extend(stats.n_chars_text)
+
         self.n_tables = n_tables
         self.total_length = total_length
 
@@ -82,14 +97,49 @@ class TablesStats:
         self.n_cells = n_cells
         self.n_chars = n_chars
 
+        self.n_numeric_cells = n_numeric_cells
+        self.n_text_cells = n_text_cells
+        self.n_empty_cells = n_empty_cells
+
+        self.n_chars_numeric = n_chars_numeric
+        self.n_chars_text = n_chars_text
+
     @property
     def total_length_as_str(self):
         return f'{self.total_length:_}'.replace('_', ' ')
 
+    @property
+    def n_cells_sum(self):
+        return sum(self.n_cells)
+
+    @property
+    def n_numeric_cells_sum(self):
+        return sum(self.n_numeric_cells)
+
+    @property
+    def n_text_cells_sum(self):
+        return sum(self.n_text_cells)
+
+    @property
+    def n_empty_cells_sum(self):
+        return sum(self.n_empty_cells)
+
     def print(self):
-        def print_percentiles(label: str, data: list):
-            percentiles = ' '.join(map(''.join, zip(('5%: ', '25%: ', '50%: ', '75%: ', '95%: '), map(lambda value: f'{value:.1f}', percentile(data, (5, 25, 50, 75, 95))))))
-            print(f'{label}: {percentiles}')
+        # def print_percentiles(label: str, data: list):
+        #     percentiles = ' '.join(map(''.join, zip(('5%: ', '25%: ', '50%: ', '75%: ', '95%: '), map(lambda value: f'{value:.1f}', percentile(data, (5, 25, 50, 75, 95))))))
+        #     print(f'{label}: {percentiles}')
+
+        def add_percentiles(label: str, data: list, accumulator: dict = None):
+            if accumulator is None:
+                accumulator = {}
+
+            accumulator[label] = {
+                key: value
+                for key, value in
+                zip(('5%', '25%', '50%', '75%', '95%'), map(lambda value: f'{value:.1f}', percentile(data, (5, 25, 50, 75, 95))))
+            }
+
+            return accumulator
 
         if self._base_stats is None:
             print('Number of tables:', self.n_tables)
@@ -101,7 +151,44 @@ class TablesStats:
         else:
             print(f'Total length: {self.total_length_as_str} / {self._base_stats.total_length_as_str} ({self.total_length / self._base_stats.total_length * 100:.3f}%)')
 
-        print_percentiles('Number of cells', self.n_cells)
-        print_percentiles('Number of rows', self.n_rows)
-        print_percentiles('Number of columns', self.n_cols)
-        print_percentiles('Text length', self.n_chars)
+        print()
+
+        if self._base_stats is None:
+            raise NotImplementedError()
+        else:
+            print(f'N numeric cells: {self.n_numeric_cells_sum} / {self.n_cells_sum} ({self.n_numeric_cells_sum / self.n_cells_sum * 100:.3f}%)')
+            print(f'N text cells: {self.n_text_cells_sum} / {self.n_cells_sum} ({self.n_text_cells_sum / self.n_cells_sum * 100:.3f}%)')
+            print(f'N empty cells: {self.n_empty_cells_sum} / {self.n_cells_sum} ({self.n_empty_cells_sum / self.n_cells_sum * 100:.3f}%)')
+
+        # print_percentiles('Number of cells', self.n_cells)
+        # print_percentiles('Number of rows', self.n_rows)
+        # print_percentiles('Number of columns', self.n_cols)
+        # print_percentiles('Text length', self.n_chars)
+
+        stats = add_percentiles(
+            'Text cell length', self.n_chars_text,
+            add_percentiles(
+                'Numeric cell length', self.n_chars_numeric,
+                add_percentiles(
+                    'Number of text cells', self.n_text_cells,
+                    add_percentiles(
+                        'Number of numeric cells', self.n_numeric_cells,
+                        add_percentiles(
+                            'Text length', self.n_chars,
+                            add_percentiles(
+                                'Number of columns', self.n_cols,
+                                add_percentiles(
+                                    'Number of rows', self.n_rows,
+                                    add_percentiles('Number of cells', self.n_cells)
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+
+        df = DataFrame.from_dict(stats, orient = 'index')
+
+        print()
+        print(df)
