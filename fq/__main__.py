@@ -19,7 +19,7 @@ from pandas import read_csv
 from .util import unpack, normalize_spaces, is_number
 from .Cell import Cell
 from .Tables import Tables
-# from .TableTranslator import TableTranslator
+from .TableTranslator import TableTranslator
 
 
 @group()
@@ -39,6 +39,7 @@ QUESTION_GENERATION_TASK_DESCRIPTION = (
     'Please, precede the generated question with prefix "QUESTION: " and precede the correct answer with prefix "ANSWER: "'
 )
 QUESTION_GENERATION_PROMPT = '{task}\n\nTABLE: {table}'
+PARAGRAPH_SEP = '__PARAGRAPH_SEP__'
 
 
 # print(len(QUESTION_GENERATION_TASK_DESCRIPTION))
@@ -286,6 +287,9 @@ def translate(source: str, destination: str, first_n: int):
 
             table['_filename'] = source_file
 
+            if (context := table.get('context')) is not None:
+                texts.append(context)
+
             tables.append(table)
 
     # print(len(texts))
@@ -312,6 +316,10 @@ def translate(source: str, destination: str, first_n: int):
 
         filename = table.pop('_filename')
 
+        if (context := table.get('context')) is not None:
+            table['context'] = translated_texts[offset]
+            offset += 1
+
         with open(os.path.join(destination, filename), 'w') as file:
             json.dump(table, file, indent = 2, ensure_ascii = False)
 
@@ -320,6 +328,67 @@ def translate(source: str, destination: str, first_n: int):
 @argument('source', type = str)
 @argument('destination', type = str)
 def parse(source: str, destination: str):
+    def get_table_context(document, table, window: int = 5):
+        paragraphs = document.paragraphs
+
+        # i = 0
+
+        # print(dir(paragraphs[0]._element))
+
+        first_paragraph_element_after_the_table = None
+
+        for item in table._element.itersiblings():
+            if (text := item.text) is not None and len(text.strip()) > 0:
+                first_paragraph_element_after_the_table = item
+                break
+
+            # i += 1
+
+            # if i > 1:
+            #     break
+
+        if first_paragraph_element_after_the_table is None:
+            return None
+
+        i = 0
+
+        context = []
+        offset = 1
+
+        for paragraph in paragraphs:
+            if paragraph._element.text == first_paragraph_element_after_the_table.text:
+                # for offset in range(-window, 0):
+
+                while window > 0:
+                    text = paragraphs[i - offset]._element.text
+
+                    if text is not None and len(text.strip()) > 0:
+                        context.append(text)
+
+                        if not text.startswith('Таблица'):
+                            window -= 1
+
+                    offset += 1
+
+            i += 1
+
+        return normalize_spaces(PARAGRAPH_SEP.join(context[::-1])).replace(PARAGRAPH_SEP, '\n\n')
+
+        # print(first_paragraph_element_after_the_table.text)
+
+        # paragraphs = document.paragraphs
+        #
+        # for i in range(len(paragraphs)):
+        #     paragraph = paragraphs[i]
+
+        #     print(dir(paragraph))
+
+        #     if table in paragraph.tables:
+        #         if i > 0:
+        #             return paragraphs[i - 1]
+        #         else:
+        #             return None
+
     for source_file in tqdm(os.listdir(source)):
         document = Document(os.path.join(source, source_file))
 
@@ -327,6 +396,11 @@ def parse(source: str, destination: str):
             os.makedirs(destination)
 
         for i, table in enumerate(document.tables):
+            context = get_table_context(document, table)
+
+            if context is None:
+                print(f'No context for table {i} in file {source_file}')
+
             parsed_rows = []
             destination_file = os.path.join(destination, f'{Path(source_file).stem}.{i}'.replace(' ', '_')) + '.json'
 
@@ -379,9 +453,8 @@ def parse(source: str, destination: str):
 
             # i = 0
 
-
             with open(destination_file, 'w') as file:
-                json.dump(Cell.serialize_rows(parsed_rows), file, indent = 2, ensure_ascii = False)
+                json.dump(Cell.serialize_rows(parsed_rows, context), file, indent = 2, ensure_ascii = False)
 
 
 @main.command()

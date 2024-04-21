@@ -112,8 +112,8 @@ class Cell:
         }
 
     @staticmethod
-    def serialize_rows(rows: list[list[Cell]]):
-        return {
+    def serialize_rows(rows: list[list[Cell]], context: str = None):
+        data = {
             'rows': [
                 [
                     cell.serialize()
@@ -122,6 +122,11 @@ class Cell:
                 for row in rows
             ]
         }
+
+        if context is not None:
+            data['context'] = context
+
+        return data
 
 
 class Placeholder:
