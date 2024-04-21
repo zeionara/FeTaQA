@@ -6,13 +6,14 @@ from .util import is_number
 
 
 class Table:
-    def __init__(self, data: dict):
+    def __init__(self, data: dict, label: str):
         self.data = data
+        self.label = label
         self._stats = None
 
     @classmethod
-    def from_json(cls, json: dict):
-        return cls(json)
+    def from_json(cls, json: dict, label: str):
+        return cls(json, label)
 
     @property
     def n_chars(self):
@@ -91,9 +92,42 @@ class TableStats:
         self.n_colspans = n_colspans
 
     @property
+    def as_vector(self):
+        return [
+            self.n_cells,
+            self.n_rows,
+            self.n_cols,
+            sum(self.n_chars), 0 if len(self.n_chars) < 1 else mean(self.n_chars),
+            self.n_numeric_cells,
+            self.n_text_cells,
+            self.n_empty_cells,
+            sum(self.n_chars_numeric), 0 if len(self.n_chars_numeric) < 1 else mean(self.n_chars_numeric),
+            sum(self.n_chars_text), 0 if len(self.n_chars_text) < 1 else mean(self.n_chars_text),
+            self.mean_rowspan,
+            self.mean_colspan
+        ]
+
+    @classmethod
+    @property
+    def vector_legend(self):
+        return [
+            'n-cells',
+            'n-rows',
+            'n-cols',
+            'n-chars-sum', 'n-chars-mean',
+            'n-numeric-cells',
+            'n-text-cells',
+            'n-empty-cells',
+            'n-chars-numeric-sum', 'n-chars-numeric-mean',
+            'n-chars-text-sum', 'n-chars-text-mean',
+            'mean-rowspan',
+            'mean-colspan'
+        ]
+
+    @property
     def mean_rowspan(self):
-        return mean(self.n_rowspans)
+        return 0 if len(self.n_rowspans) < 1 else mean(self.n_rowspans)
 
     @property
     def mean_colspan(self):
-        return mean(self.n_colspans)
+        return 0 if len(self.n_colspans) < 1 else mean(self.n_colspans)

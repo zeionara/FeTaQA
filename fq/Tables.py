@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 import json
 
-from numpy import percentile, mean
+from numpy import percentile
 from pandas import DataFrame
 
-from .Table import Table
+from .Table import Table, TableStats
 
 
 class Tables:
@@ -19,11 +19,12 @@ class Tables:
     def from_dir(cls, path: str):
         tables = []
 
-        for file in os.listdir(path):
-            with open(os.path.join(path, file), 'r') as file:
+        for filename in os.listdir(path):
+            with open(os.path.join(path, filename), 'r') as file:
                 tables.append(
                     Table.from_json(
-                        json.load(file)
+                        json.load(file),
+                        filename
                     )
                 )
 
@@ -42,6 +43,10 @@ class Tables:
             [item for item in self._items if item.stats.n_cells > 1 and item.stats.n_rows > 1 and item.stats.n_cols > 1],
             base = self if self._base is None else self._base
         )
+
+    @property
+    def labels(self):
+        return [item.label for item in self._items]
 
     def __iter__(self):
         return self._items
@@ -141,6 +146,15 @@ class TablesStats:
     @property
     def n_empty_cells_sum(self):
         return sum(self.n_empty_cells)
+
+    @property
+    def as_df(self):
+        df = DataFrame(
+            [table.stats.as_vector for table in self.tables],
+            columns = TableStats.vector_legend
+        )
+
+        return (df - df.mean()) / df.std()
 
     def print(self):
         # def print_percentiles(label: str, data: list):

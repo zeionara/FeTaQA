@@ -1,14 +1,19 @@
 import os
 from os import environ as env
 import json
+import shutil
 # from time import sleep
 
+import matplotlib.pyplot as plt
 from click import argument, group, option
-from numpy import percentile
+from numpy import percentile, random as np_random, mean, std
 from tqdm import tqdm
 from pathlib import Path
 from docx.api import Document
 from requests import post
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
+from pandas import read_csv
 # from camelot import read_pdf
 
 from .util import unpack, normalize_spaces, is_number
@@ -122,8 +127,69 @@ def make_questions(path: str):
 
 @main.command()
 @argument('path', type = str)
-def stats(path: str):
-    Tables.from_dir(path).non_trivial.stats.print()
+@option('--n-clusters', '-n', type = int, default = 2)
+@option('--seed', '-s', type = int, default = 17)
+def clusterize(path: str, n_clusters: int, seed: int):
+    pca = PCA(n_components = 2)
+    df = read_csv(path, sep = '\t')
+
+    df_compressed = pca.fit_transform(df)
+    df_compressed_jitter = df_compressed + np_random.normal(loc = 0, scale = 0.01, size = df_compressed.shape)
+
+    kmeans = KMeans(n_clusters = n_clusters, random_state = seed)
+    cluster_labels = kmeans.fit_predict(df)
+
+    # print(cluster_labels)
+
+    n_files_per_cluster = [0 for _ in range(n_clusters)]
+    jsons_path = path.split('.')[0]
+    clusters_path = jsons_path + '_clusters'
+    labels_path = jsons_path + '.txt'
+
+    labels = []
+
+    with open(labels_path, 'r') as file:
+        for line in file.readlines():
+            labels.append(line[:-1])
+
+    if os.path.isdir(clusters_path):
+        shutil.rmtree(clusters_path)
+
+    for i in range(0, n_clusters):
+        os.makedirs(os.path.join(clusters_path, f'{i:02d}'))
+
+    for file, cluster in zip(labels, cluster_labels):
+        n_files_per_cluster[cluster] += 1
+        shutil.copy(os.path.join(jsons_path, file), os.path.join(clusters_path, f'{cluster:02d}', file))
+
+    for cluster, count in sorted([(i, count) for i, count in enumerate(n_files_per_cluster)], key = lambda item: item[1], reverse = True):
+        print(f'{cluster:02d}: {count:03d}')
+
+    print(f'Mean n tables per cluster: {mean(n_files_per_cluster):.3f}, Std: {std(n_files_per_cluster):.3f}')
+
+    plt.figure(figsize=(8, 6))
+    plt.scatter(df_compressed_jitter[:, 0], df_compressed_jitter[:, 1], s = 10, c = cluster_labels, cmap = 'tab20')
+    plt.title('Table features PCAed to 2 dimensions')
+    plt.xlabel('Principal Component 1')
+    plt.ylabel('Principal Component 2')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.grid(True)
+    plt.show()
+
+
+@main.command()
+@argument('path', type = str)
+@option('--save', '-s', is_flag = True)
+def stats(path: str, save: bool):
+    if save:
+        (tables := Tables.from_dir(path).non_trivial).stats.as_df.to_csv(f'{path}.tsv', index = False, sep = '\t')
+
+        with open(f'{path}.txt', 'w') as file:
+            for label in tables.labels:
+                file.write(f'{label}\n')
+    else:
+        Tables.from_dir(path).non_trivial.stats.print()
 
     # n_tables = 0
 
