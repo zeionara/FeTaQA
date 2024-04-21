@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import json
 
@@ -7,8 +9,10 @@ from .Table import Table
 
 
 class Tables:
-    def __init__(self, items: list[Table]):
+    def __init__(self, items: list[Table], base: Tables = None):
+        self._base = base
         self._items = items
+        self._stats = None
 
     @classmethod
     def from_dir(cls, path: str):
@@ -26,14 +30,26 @@ class Tables:
 
     @property
     def stats(self):
-        return TablesStats(self._items)
+        if self._stats is None:
+            self._stats = TablesStats(self._items, None if self._base is None else self._base.stats)
+
+        return self._stats
+
+    @property
+    def non_trivial(self):
+        return Tables(
+            [item for item in self._items if item.stats.n_cells > 1 and item.stats.n_rows > 1 and item.stats.n_cols > 1],
+            base = self if self._base is None else self._base
+        )
 
     def __iter__(self):
         return self._items
 
 
 class TablesStats:
-    def __init__(self, tables: Tables):
+    def __init__(self, tables: Tables, base_stats: TablesStats = None):
+        self._base_stats = base_stats
+
         self.tables = tables
 
         n_tables = 0
@@ -66,13 +82,24 @@ class TablesStats:
         self.n_cells = n_cells
         self.n_chars = n_chars
 
+    @property
+    def total_length_as_str(self):
+        return f'{self.total_length:_}'.replace('_', ' ')
+
     def print(self):
         def print_percentiles(label: str, data: list):
-            percentiles = ' '.join(map(''.join, zip(('5%: ', '25%: ', '50%: ', '75%: ', '95%: '), map(lambda value: f'{value:.3f}', percentile(data, (5, 25, 50, 75, 95))))))
+            percentiles = ' '.join(map(''.join, zip(('5%: ', '25%: ', '50%: ', '75%: ', '95%: '), map(lambda value: f'{value:.1f}', percentile(data, (5, 25, 50, 75, 95))))))
             print(f'{label}: {percentiles}')
 
-        print('Number of tables:', self.n_tables)
-        print('Total length:', self.total_length)
+        if self._base_stats is None:
+            print('Number of tables:', self.n_tables)
+        else:
+            print(f'Number of tables: {self.n_tables} / {self._base_stats.n_tables} ({self.n_tables / self._base_stats.n_tables * 100:.3f}%)')
+
+        if self._base_stats is None:
+            print('Total length:', self.total_length)
+        else:
+            print(f'Total length: {self.total_length_as_str} / {self._base_stats.total_length_as_str} ({self.total_length / self._base_stats.total_length * 100:.3f}%)')
 
         print_percentiles('Number of cells', self.n_cells)
         print_percentiles('Number of rows', self.n_rows)

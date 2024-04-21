@@ -122,7 +122,7 @@ def make_questions(path: str):
 @main.command()
 @argument('path', type = str)
 def stats(path: str):
-    Tables.from_dir(path).stats.print()
+    Tables.from_dir(path).non_trivial.stats.print()
 
     # n_tables = 0
 

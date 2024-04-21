@@ -7,6 +7,7 @@ from numpy import percentile
 class Table:
     def __init__(self, data: dict):
         self.data = data
+        self._stats = None
 
     @classmethod
     def from_json(cls, json: dict):
@@ -18,7 +19,10 @@ class Table:
 
     @property
     def stats(self):
-        return TableStats(self)
+        if self._stats is None:
+            self._stats = TableStats(self)
+
+        return self._stats
 
 
 class TableStats:
