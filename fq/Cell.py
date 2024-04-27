@@ -81,10 +81,10 @@ class Cell:
                 else:
                     merged_row.append(cell)
 
-                current_row_offset += cell.n_rows
+                current_row_offset += cell.n_cols
 
                 if last_row_cell is not None:
-                    last_row_offset += last_row_cell.n_rows
+                    last_row_offset += last_row_cell.n_cols
 
                 last_row_index += 1
 
@@ -145,6 +145,10 @@ class Placeholder:
     @property
     def n_rows(self):
         return self.origin.n_rows
+
+    @property
+    def n_cols(self):
+        return self.origin.n_cols
 
     def serialize(self):
         return {

@@ -76,6 +76,8 @@ class TableStats:
             if n_cols_current_row > n_cols:
                 n_cols = n_cols_current_row
 
+        # print(n_cells)
+
         self.n_cells = n_cells
         self.n_rows = n_rows
         self.n_cols = n_cols
