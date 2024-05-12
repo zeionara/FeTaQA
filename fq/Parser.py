@@ -101,11 +101,14 @@ class Parser:
                             title.append(text)
 
                             for match in TABLE_ID.findall(text):
-                                id_ = str(match)
+                                id_candidate = str(match)
 
-                            application_table_id_match = APPLICATION_TABLE_ID.fullmatch(text)
+                                if id_ is None or len(id_candidate) > len(id_):
+                                    id_ = id_candidate
 
-                            if application_table_id_match is not None:
+                            application_table_id_match = APPLICATION_TABLE_ID.fullmatch(id_)
+
+                            if application_table_id_match is not None and text.endswith(id_):
                                 title.append(get_last_non_empty_paragraph(paragraphs[:i - offset])._element.text)
 
                             table_type = TableType.TABLE
@@ -121,7 +124,10 @@ class Parser:
                             title.append(get_last_non_empty_paragraph(paragraphs[i - offset + 1:][::-1])._element.text)
 
                             for match in TABLE_ID.findall(text):
-                                id_ = str(match)
+                                id_candidate = str(match)
+
+                                if id_ is None or len(id_candidate) > len(id_):
+                                    id_ = id_candidate
 
                             table_type = TableType.FORM
                         elif id_ is None and normalized_text.startswith('приложение'):
@@ -129,7 +135,10 @@ class Parser:
                             title.append(get_last_non_empty_paragraph(paragraphs[i - offset + 1:][::-1])._element.text)
 
                             for match in APPLICATION_ID.findall(text):
-                                id_ = str(match)
+                                id_candidate = str(match)
+
+                                if id_ is None or len(id_candidate) > len(id_):
+                                    id_ = id_candidate
 
                             table_type = TableType.APPLICATION
                         else:
