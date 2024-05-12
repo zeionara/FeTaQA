@@ -1,4 +1,5 @@
 import os
+import re
 # import json
 from pathlib import Path
 
@@ -12,6 +13,10 @@ from .Table import Table
 
 PARAGRAPH_SEP_PLACEHOLDER = '__PARAGRAPH_SEP__'
 PARAGRAPH_SEP = '\n\n'
+TABLE_ID = re.compile('[0-9.]+')
+APPLICATION_ID = re.compile('[A-ZА-ЯЁ]+')
+
+DEBUG = False
 
 
 class Parser:
@@ -31,41 +36,100 @@ class Parser:
                 first_paragraph_element_after_the_table = item
                 break
 
+        last_non_empty_paragraph = None
+
+        def is_not_empty(text: str):
+            return text is not None and len(text.strip()) > 0
+
         if first_paragraph_element_after_the_table is None:
-            return None
+            # Find last non-empty paragraph
+
+            for paragraph in paragraphs[::-1]:
+                if is_not_empty(paragraph._element.text):
+                    last_non_empty_paragraph = paragraph
+                    break
+
+            # return None
 
         i = 0
 
         context = []
-        offset = 1
+        offset = 0 if first_paragraph_element_after_the_table is None else 1
+
+        title = None
+        id_ = None
+        is_application = False
+        found_reference = False
 
         for paragraph in paragraphs:
-            if paragraph._element.text == first_paragraph_element_after_the_table.text:
-                while window > 0:
+            if (
+                first_paragraph_element_after_the_table is None and paragraph._element.text == last_non_empty_paragraph._element.text or
+                first_paragraph_element_after_the_table is not None and paragraph._element.text == first_paragraph_element_after_the_table.text
+            ):
+                while window > 0 and i >= offset:
                     text = paragraphs[i - offset]._element.text
 
                     if text is not None and len(text.strip()) > 0:
-                        context.append(text)
+                        normalized_text = text.lower().strip()
+                        if normalized_text.startswith('таблица'):
+                            title = text
 
-                        if not text.startswith('Таблица'):
-                            window -= 1
+                            for match in TABLE_ID.findall(title):
+                                id_ = str(match)
+                        elif normalized_text.startswith('приложение'):
+                            title = text
+
+                            for match in APPLICATION_ID.findall(title):
+                                id_ = str(match)
+
+                            is_application = True
+                        else:
+                            normalized_text = text.lower().strip()
+
+                            if id_ is not None and (is_application is False and 'табл' in normalized_text or is_application is True and 'приложен' in normalized_text) and id_ in text:
+                                found_reference = True
+                                # print('found ref!')
+                                # break
+
+                            if found_reference:
+                                context.append(text)
+                                window -= 1
 
                     offset += 1
 
             i += 1
 
+        if len(context) < 1:
+            return None
+
         return normalize_spaces(PARAGRAPH_SEP_PLACEHOLDER.join(context[::-1])).replace(PARAGRAPH_SEP_PLACEHOLDER, PARAGRAPH_SEP)
 
-    def parse_file(self, source: str, get_destination: callable):
+    def parse_file(self, source: str, get_destination: callable = None):
         document = Document(source)
         # indent = self.json_indent
 
+        if get_destination is None:
+            stem = Path(source).stem
+
+            def get_destination(i: int):
+                return f'{stem}.{i:04d}'.replace('-', '_') + '.json'
+
         for i, table in enumerate(document.tables):
-            yield Table.from_docx(
-                table,
-                label = get_destination(i),
-                context = self.get_context(document, table)
-            )
+            if DEBUG:
+                yield Table.from_docx(
+                    table,
+                    label = (destination := get_destination(i)),
+                    context = self.get_context(document, table)
+                )
+            else:
+                try:
+                    yield Table.from_docx(
+                        table,
+                        label = (destination := get_destination(i)),
+                        context = self.get_context(document, table)
+                    )
+                except IndexError:
+                    print(f"Can't parse table {destination} due to index error")
 
         # for i, table in enumerate(document.tables):
         #     context = self.get_context(document, table)
@@ -125,6 +189,6 @@ class Parser:
         for source_file in tqdm(os.listdir(source)):
             for table in self.parse_file(
                 source = os.path.join(source, source_file),
-                get_destination = lambda i: os.path.join(destination, f'{Path(source_file).stem}.{i}'.replace(' ', '_')) + '.json'
+                get_destination = lambda i: os.path.join(destination, f'{Path(source_file).stem}.{i:04d}'.replace(' ', '_')) + '.json'
             ):
                 table.to_json(table.label, indent = indent)

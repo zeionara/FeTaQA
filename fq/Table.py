@@ -49,6 +49,10 @@ class Table:
 
         return self._stats
 
+    @property
+    def context(self):
+        return self.data.get('context')
+
 
 class TableStats:
     def __init__(self, table: Table):

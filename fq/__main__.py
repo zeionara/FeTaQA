@@ -7,19 +7,19 @@ import shutil
 import matplotlib.pyplot as plt
 from click import argument, group, option
 from numpy import percentile, random as np_random, mean, std
-from tqdm import tqdm
+# from tqdm import tqdm
 from pathlib import Path
-from docx.api import Document
+# from docx.api import Document
 from requests import post
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
 from pandas import read_csv
 # from camelot import read_pdf
 
-from .util import unpack, normalize_spaces, is_number
-from .Cell import Cell
+from .util import unpack, is_number  # , normalize_spaces
+# from .Cell import Cell
 from .Tables import Tables
-from .TableTranslator import TableTranslator
+# from .TableTranslator import TableTranslator
 from .Parser import Parser
 
 
@@ -208,6 +208,8 @@ def unpack_(source: str, destination: str):
 @argument('destination', type = str)
 @option('--first-n', '-n', type = int, required = False)
 def translate(source: str, destination: str, first_n: int):
+    from .TableTranslator import TableTranslator
+
     print('Collecting texts...')
 
     if not os.path.isdir(destination):
@@ -270,6 +272,17 @@ def translate(source: str, destination: str, first_n: int):
 
         with open(os.path.join(destination, filename), 'w') as file:
             json.dump(table, file, indent = 2, ensure_ascii = False)
+
+
+@main.command()
+@argument('source', type = str)
+def view(source: str):
+    parser = Parser()
+
+    for table in parser.parse_file(source):
+        print('=' * 100)
+        # print(table.data)
+        print(table.context)
 
 
 @main.command()
