@@ -1,8 +1,11 @@
 import json
 
 from numpy import mean
+from docx.table import Table as TableDocx
 
 from .util import is_number
+from .Cell import Cell
+from .util import normalize_spaces
 
 
 class Table:
@@ -14,6 +17,26 @@ class Table:
     @classmethod
     def from_json(cls, json: dict, label: str):
         return cls(json, label)
+
+    @classmethod
+    def from_docx(cls, table: TableDocx, label: str, context: str):
+        parsed_rows = []
+
+        for row in table.rows:
+            parsed_cells = []
+
+            for cell in row.cells:
+                parsed_cells.append(Cell(normalize_spaces(cell.text)))
+
+            parsed_rows.append(Cell.merge_horizontally(parsed_cells))
+
+        parsed_rows = Cell.merge_vertically(parsed_rows)
+
+        return cls(Cell.serialize_rows(parsed_rows, context), label)
+
+    def to_json(self, path: str, indent: int):
+        with open(path, 'w') as file:
+            json.dump(self.data, file, indent = indent, ensure_ascii = False)
 
     @property
     def n_chars(self):

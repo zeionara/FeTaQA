@@ -20,6 +20,7 @@ from .util import unpack, normalize_spaces, is_number
 from .Cell import Cell
 from .Tables import Tables
 from .TableTranslator import TableTranslator
+from .Parser import Parser
 
 
 @group()
@@ -39,7 +40,6 @@ QUESTION_GENERATION_TASK_DESCRIPTION = (
     'Please, precede the generated question with prefix "QUESTION: " and precede the correct answer with prefix "ANSWER: "'
 )
 QUESTION_GENERATION_PROMPT = '{task}\n\nTABLE: {table}'
-PARAGRAPH_SEP = '__PARAGRAPH_SEP__'
 
 
 # print(len(QUESTION_GENERATION_TASK_DESCRIPTION))
@@ -192,58 +192,6 @@ def stats(path: str, save: bool):
     else:
         Tables.from_dir(path).non_trivial.stats.print()
 
-    # n_tables = 0
-
-    # n_cells_ = []
-    # n_rows_ = []
-    # n_cols_ = []
-    # n_chars_ = []
-
-    # total_length = 0
-
-    # for file in os.listdir(path):
-    #     with open(os.path.join(path, file), 'r') as file:
-    #         n_tables += 1
-    #         table = json.load(file)
-
-    #         total_length += len(json.dumps(table, ensure_ascii = False, indent = 2))
-
-    #         n_cells = 0
-    #         n_rows = 0
-    #         n_cols = 0
-
-    #         for row in table['rows']:
-    #             n_rows += 1
-
-    #             n_cols_local = 0
-
-    #             for cell in row:
-    #                 if (cell_text := cell.get('text')) is not None:
-    #                     n_cols_local += 1
-    #                     # print(cell_text)
-    #                     n_chars_.append(len(cell_text))
-
-    #             n_cells += (n_cols_local := len([cell for cell in row if 'text' in cell]))  # if 'text' not in cell then it is a placeholder
-
-    #             if n_cols_local > n_cols:
-    #                 n_cols = n_cols_local
-
-    #         n_rows_.append(n_rows)
-    #         n_cols_.append(n_cols)
-    #         n_cells_.append(n_cells)
-
-    # def print_percentiles(label: str, data: list):
-    #     percentiles = ' '.join(map(''.join, zip(('5%: ', '25%: ', '50%: ', '75%: ', '95%: '), map(lambda value: f'{value:.3f}', percentile(data, (5, 25, 50, 75, 95))))))
-    #     print(f'{label}: {percentiles}')
-
-    # print('Number of tables:', n_tables)
-    # print('Total length:', total_length)
-
-    # print_percentiles('Number of cells', n_cells_)
-    # print_percentiles('Number of rows', n_rows_)
-    # print_percentiles('Number of columns', n_cols_)
-    # print_percentiles('Text length', n_chars_)
-
 
 @main.command(name = 'unpack')
 @argument('source', type = str)
@@ -328,133 +276,74 @@ def translate(source: str, destination: str, first_n: int):
 @argument('source', type = str)
 @argument('destination', type = str)
 def parse(source: str, destination: str):
-    def get_table_context(document, table, window: int = 5):
-        paragraphs = document.paragraphs
+    Parser().parse(source, destination)
 
-        # i = 0
+    # for source_file in tqdm(os.listdir(source)):
+    #     document = Document(os.path.join(source, source_file))
 
-        # print(dir(paragraphs[0]._element))
+    #     if not os.path.isdir(destination):
+    #         os.makedirs(destination)
 
-        first_paragraph_element_after_the_table = None
+    #     for i, table in enumerate(document.tables):
+    #         context = get_table_context(document, table)
 
-        for item in table._element.itersiblings():
-            if (text := item.text) is not None and len(text.strip()) > 0:
-                first_paragraph_element_after_the_table = item
-                break
+    #         if context is None:
+    #             print(f'No context for table {i} in file {source_file}')
 
-            # i += 1
+    #         parsed_rows = []
+    #         destination_file = os.path.join(destination, f'{Path(source_file).stem}.{i}'.replace(' ', '_')) + '.json'
 
-            # if i > 1:
-            #     break
+    #         if os.path.isfile(destination_file):
+    #             continue
 
-        if first_paragraph_element_after_the_table is None:
-            return None
+    #         try:
+    #             rows = table.rows
+    #         except:
+    #             print(f'Error when parsing table {i} from file {source_file}. Skipping...')
+    #             continue
 
-        i = 0
+    #         skip_table = False
 
-        context = []
-        offset = 1
+    #         for row in rows:
+    #             parsed_cells = []
 
-        for paragraph in paragraphs:
-            if paragraph._element.text == first_paragraph_element_after_the_table.text:
-                # for offset in range(-window, 0):
+    #             try:
+    #                 cells = row.cells
+    #             except:
+    #                 print(f'Error when parsing table {i} from file {source_file}. Skipping...')
+    #                 skip_table = True
+    #                 break
 
-                while window > 0:
-                    text = paragraphs[i - offset]._element.text
+    #             for cell in cells:
+    #                 # print(dir(cell))
+    #                 # print(cell._element.xml)
 
-                    if text is not None and len(text.strip()) > 0:
-                        context.append(text)
+    #                 parsed_cells.append(Cell(normalize_spaces(cell.text)))
 
-                        if not text.startswith('Таблица'):
-                            window -= 1
+    #             try:
+    #                 parsed_rows.append(Cell.merge_horizontally(parsed_cells))
+    #             except:
+    #                 print(f'Error when merging horizontally on file {source_file}')
 
-                    offset += 1
+    #         if skip_table:
+    #             continue
 
-            i += 1
+    #         try:
+    #             parsed_rows = Cell.merge_vertically(parsed_rows)
+    #         except:
+    #             print(f'Error when merging vertically on file {source_file}')
 
-        return normalize_spaces(PARAGRAPH_SEP.join(context[::-1])).replace(PARAGRAPH_SEP, '\n\n')
+    #         # for row in parsed_rows:
+    #         #     print(row)
 
-        # print(first_paragraph_element_after_the_table.text)
+    #         # print(source)
 
-        # paragraphs = document.paragraphs
-        #
-        # for i in range(len(paragraphs)):
-        #     paragraph = paragraphs[i]
+    #         # print(Cell.serialize_rows(parsed_rows))
 
-        #     print(dir(paragraph))
+    #         # i = 0
 
-        #     if table in paragraph.tables:
-        #         if i > 0:
-        #             return paragraphs[i - 1]
-        #         else:
-        #             return None
-
-    for source_file in tqdm(os.listdir(source)):
-        document = Document(os.path.join(source, source_file))
-
-        if not os.path.isdir(destination):
-            os.makedirs(destination)
-
-        for i, table in enumerate(document.tables):
-            context = get_table_context(document, table)
-
-            if context is None:
-                print(f'No context for table {i} in file {source_file}')
-
-            parsed_rows = []
-            destination_file = os.path.join(destination, f'{Path(source_file).stem}.{i}'.replace(' ', '_')) + '.json'
-
-            if os.path.isfile(destination_file):
-                continue
-
-            try:
-                rows = table.rows
-            except:
-                print(f'Error when parsing table {i} from file {source_file}. Skipping...')
-                continue
-
-            skip_table = False
-
-            for row in rows:
-                parsed_cells = []
-
-                try:
-                    cells = row.cells
-                except:
-                    print(f'Error when parsing table {i} from file {source_file}. Skipping...')
-                    skip_table = True
-                    break
-
-                for cell in cells:
-                    # print(dir(cell))
-                    # print(cell._element.xml)
-
-                    parsed_cells.append(Cell(normalize_spaces(cell.text)))
-
-                try:
-                    parsed_rows.append(Cell.merge_horizontally(parsed_cells))
-                except:
-                    print(f'Error when merging horizontally on file {source_file}')
-
-            if skip_table:
-                continue
-
-            try:
-                parsed_rows = Cell.merge_vertically(parsed_rows)
-            except:
-                print(f'Error when merging vertically on file {source_file}')
-
-            # for row in parsed_rows:
-            #     print(row)
-
-            # print(source)
-
-            # print(Cell.serialize_rows(parsed_rows))
-
-            # i = 0
-
-            with open(destination_file, 'w') as file:
-                json.dump(Cell.serialize_rows(parsed_rows, context), file, indent = 2, ensure_ascii = False)
+    #         with open(destination_file, 'w') as file:
+    #             json.dump(Cell.serialize_rows(parsed_rows, context), file, indent = 2, ensure_ascii = False)
 
 
 @main.command()
