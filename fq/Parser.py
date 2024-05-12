@@ -103,7 +103,7 @@ class Parser:
                             for match in TABLE_ID.findall(text):
                                 id_candidate = str(match)
 
-                                if id_ is None or len(id_candidate) > len(id_):
+                                if id_ is None or len(id_candidate) >= len(id_):
                                     id_ = id_candidate
 
                             application_table_id_match = APPLICATION_TABLE_ID.fullmatch(id_)
@@ -126,7 +126,7 @@ class Parser:
                             for match in TABLE_ID.findall(text):
                                 id_candidate = str(match)
 
-                                if id_ is None or len(id_candidate) > len(id_):
+                                if id_ is None or len(id_candidate) >= len(id_):
                                     id_ = id_candidate
 
                             table_type = TableType.FORM
@@ -137,7 +137,7 @@ class Parser:
                             for match in APPLICATION_ID.findall(text):
                                 id_candidate = str(match)
 
-                                if id_ is None or len(id_candidate) > len(id_):
+                                if id_ is None or len(id_candidate) >= len(id_):
                                     id_ = id_candidate
 
                             table_type = TableType.APPLICATION
