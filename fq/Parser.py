@@ -71,12 +71,13 @@ class Parser:
 
                     if text is not None and len(text.strip()) > 0:
                         normalized_text = text.lower().strip()
-                        if normalized_text.startswith('таблица'):
+
+                        if id_ is None and normalized_text.startswith('таблица'):
                             title = text
 
                             for match in TABLE_ID.findall(title):
                                 id_ = str(match)
-                        elif normalized_text.startswith('приложение'):
+                        elif id_ is None and normalized_text.startswith('приложение'):
                             title = text
 
                             for match in APPLICATION_ID.findall(title):
@@ -84,8 +85,6 @@ class Parser:
 
                             is_application = True
                         else:
-                            normalized_text = text.lower().strip()
-
                             if id_ is not None and (is_application is False and 'табл' in normalized_text or is_application is True and 'приложен' in normalized_text) and id_ in text:
                                 found_reference = True
                                 # print('found ref!')
