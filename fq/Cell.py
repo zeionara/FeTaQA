@@ -112,7 +112,7 @@ class Cell:
         }
 
     @staticmethod
-    def serialize_rows(rows: list[list[Cell]], context: str = None):
+    def serialize_rows(rows: list[list[Cell]], context: str = None, title: str = None, id_: str = None):
         data = {
             'rows': [
                 [
@@ -125,6 +125,12 @@ class Cell:
 
         if context is not None:
             data['context'] = context
+
+        if title is not None:
+            data['title'] = title
+
+        if id_ is not None:
+            data['id'] = id_
 
         return data
 

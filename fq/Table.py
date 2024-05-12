@@ -19,7 +19,7 @@ class Table:
         return cls(json, label)
 
     @classmethod
-    def from_docx(cls, table: TableDocx, label: str, context: str):
+    def from_docx(cls, table: TableDocx, label: str, context: str, title: str, id_: str):
         parsed_rows = []
 
         for row in table.rows:
@@ -32,7 +32,7 @@ class Table:
 
         parsed_rows = Cell.merge_vertically(parsed_rows)
 
-        return cls(Cell.serialize_rows(parsed_rows, context), label)
+        return cls(Cell.serialize_rows(parsed_rows, context, title, id_), label)
 
     def to_json(self, path: str, indent: int):
         with open(path, 'w') as file:

@@ -2,6 +2,7 @@ import os
 import re
 # import json
 from pathlib import Path
+from enum import Enum
 
 from tqdm import tqdm
 from docx.api import Document
@@ -13,10 +14,17 @@ from .Table import Table
 
 PARAGRAPH_SEP_PLACEHOLDER = '__PARAGRAPH_SEP__'
 PARAGRAPH_SEP = '\n\n'
-TABLE_ID = re.compile('[0-9.]+')
+TABLE_ID = re.compile('[A-ZА-Я0-9.Ё]+')
 APPLICATION_ID = re.compile('[A-ZА-ЯЁ]+')
+APPLICATION_TABLE_ID = re.compile('([A-ZА-ЯЁ]+).+')
 
 DEBUG = False
+
+
+class TableType(Enum):
+    TABLE = 'table'
+    APPLICATION = 'application'
+    FORM = 'form'
 
 
 class Parser:
@@ -41,13 +49,26 @@ class Parser:
         def is_not_empty(text: str):
             return text is not None and len(text.strip()) > 0
 
+        def get_last_non_empty_paragraph(paragraphs: list):
+            for paragraph in paragraphs[::-1]:
+                if is_not_empty(paragraph._element.text):
+                    return paragraph
+
+        def join_paragraphs(paragraphs: list):
+            if len(paragraphs) < 1:
+                return None
+
+            return normalize_spaces(PARAGRAPH_SEP_PLACEHOLDER.join(paragraphs)).replace(PARAGRAPH_SEP_PLACEHOLDER, PARAGRAPH_SEP)
+
         if first_paragraph_element_after_the_table is None:
             # Find last non-empty paragraph
 
-            for paragraph in paragraphs[::-1]:
-                if is_not_empty(paragraph._element.text):
-                    last_non_empty_paragraph = paragraph
-                    break
+            last_non_empty_paragraph = get_last_non_empty_paragraph(paragraphs)
+
+            # for paragraph in paragraphs[::-1]:
+            #     if is_not_empty(paragraph._element.text):
+            #         last_non_empty_paragraph = paragraph
+            #         break
 
             # return None
 
@@ -56,9 +77,9 @@ class Parser:
         context = []
         offset = 0 if first_paragraph_element_after_the_table is None else 1
 
-        title = None
+        title = []
         id_ = None
-        is_application = False
+        table_type = None
         found_reference = False
 
         for paragraph in paragraphs:
@@ -72,20 +93,64 @@ class Parser:
                     if text is not None and len(text.strip()) > 0:
                         normalized_text = text.lower().strip()
 
-                        if id_ is None and normalized_text.startswith('таблица'):
-                            title = text
+                        if normalized_text.startswith('библиография'):
+                            title.append(text)
+                            id_ = text
+                            table_type = TableType.TABLE
+                        elif id_ is None and normalized_text.startswith('таблица'):
+                            title.append(text)
 
-                            for match in TABLE_ID.findall(title):
+                            for match in TABLE_ID.findall(text):
                                 id_ = str(match)
+
+                            application_table_id_match = APPLICATION_TABLE_ID.fullmatch(text)
+
+                            if application_table_id_match is not None:
+                                title.append(get_last_non_empty_paragraph(paragraphs[:i - offset])._element.text)
+
+                            table_type = TableType.TABLE
+                        elif id_ is None and normalized_text.startswith('форма'):
+                            title.append(text)
+
+                            # pars = [item._element.text for item in paragraphs[i - offset + 1:][::-1]]
+                            # lpar = get_last_non_empty_paragraph(paragraphs[i - offset + 1:][::-1])
+
+                            # print(pars[::-1])
+                            # print(lpar._element.text)
+
+                            title.append(get_last_non_empty_paragraph(paragraphs[i - offset + 1:][::-1])._element.text)
+
+                            for match in TABLE_ID.findall(text):
+                                id_ = str(match)
+
+                            table_type = TableType.FORM
                         elif id_ is None and normalized_text.startswith('приложение'):
-                            title = text
+                            title.append(text)
+                            title.append(get_last_non_empty_paragraph(paragraphs[i - offset + 1:][::-1])._element.text)
 
-                            for match in APPLICATION_ID.findall(title):
+                            for match in APPLICATION_ID.findall(text):
                                 id_ = str(match)
 
-                            is_application = True
+                            table_type = TableType.APPLICATION
                         else:
-                            if id_ is not None and (is_application is False and 'табл' in normalized_text or is_application is True and 'приложен' in normalized_text) and id_ in text:
+                            application_table_id_match = None if id_ is None else APPLICATION_TABLE_ID.fullmatch(id_)
+
+                            if (
+                                id_ is not None and
+                                (
+                                    table_type == TableType.TABLE and 'табл' in normalized_text or
+                                    (
+                                        table_type == TableType.APPLICATION or
+                                        application_table_id_match is not None
+                                    ) and 'приложен' in normalized_text or
+                                    table_type == TableType.FORM and ' форм' in normalized_text
+                                ) and
+                                (
+                                    id_ in text or
+                                    table_type == TableType.FORM or
+                                    application_table_id_match is not None and application_table_id_match.group(1) in text and not text.endswith(application_table_id_match.group(1))
+                                )
+                            ):
                                 found_reference = True
                                 # print('found ref!')
                                 # break
@@ -98,10 +163,7 @@ class Parser:
 
             i += 1
 
-        if len(context) < 1:
-            return None
-
-        return normalize_spaces(PARAGRAPH_SEP_PLACEHOLDER.join(context[::-1])).replace(PARAGRAPH_SEP_PLACEHOLDER, PARAGRAPH_SEP)
+        return join_paragraphs(context[::-1]), join_paragraphs(title), id_
 
     def parse_file(self, source: str, get_destination: callable = None):
         document = Document(source)
@@ -115,17 +177,25 @@ class Parser:
 
         for i, table in enumerate(document.tables):
             if DEBUG:
+                context, title, id_ = self.get_context(document, table)
+
                 yield Table.from_docx(
                     table,
                     label = (destination := get_destination(i)),
-                    context = self.get_context(document, table)
+                    context = context,
+                    title = title,
+                    id_ = id_
                 )
             else:
                 try:
+                    context, title, id_ = self.get_context(document, table)
+
                     yield Table.from_docx(
                         table,
                         label = (destination := get_destination(i)),
-                        context = self.get_context(document, table)
+                        context = context,
+                        title = title,
+                        id_ = id_
                     )
                 except IndexError:
                     print(f"Can't parse table {destination} due to index error")
