@@ -1,6 +1,5 @@
 import os
 import re
-# import json
 from pathlib import Path
 from enum import Enum
 
@@ -8,7 +7,6 @@ from tqdm import tqdm
 from docx.api import Document
 
 from .util import normalize_spaces
-# from .Cell import Cell
 from .Table import Table
 
 
@@ -60,17 +58,8 @@ class Parser:
 
             return normalize_spaces(PARAGRAPH_SEP_PLACEHOLDER.join(paragraphs)).replace(PARAGRAPH_SEP_PLACEHOLDER, PARAGRAPH_SEP)
 
-        if first_paragraph_element_after_the_table is None:
-            # Find last non-empty paragraph
-
+        if first_paragraph_element_after_the_table is None:  # Then probably the table is the last element of the document
             last_non_empty_paragraph = get_last_non_empty_paragraph(paragraphs)
-
-            # for paragraph in paragraphs[::-1]:
-            #     if is_not_empty(paragraph._element.text):
-            #         last_non_empty_paragraph = paragraph
-            #         break
-
-            # return None
 
         i = 0
 
@@ -106,21 +95,21 @@ class Parser:
                                 if id_ is None or len(id_candidate) >= len(id_):
                                     id_ = id_candidate
 
+                                    try:
+                                        int(id_)
+                                        break
+                                    except ValueError:
+                                        pass
+
                             application_table_id_match = APPLICATION_TABLE_ID.fullmatch(id_)
 
                             if application_table_id_match is not None and text.endswith(id_):
                                 title.append(get_last_non_empty_paragraph(paragraphs[:i - offset])._element.text)
-
-                            table_type = TableType.TABLE
+                                table_type = TableType.APPLICATION
+                            else:
+                                table_type = TableType.TABLE
                         elif id_ is None and normalized_text.startswith('форма'):
                             title.append(text)
-
-                            # pars = [item._element.text for item in paragraphs[i - offset + 1:][::-1]]
-                            # lpar = get_last_non_empty_paragraph(paragraphs[i - offset + 1:][::-1])
-
-                            # print(pars[::-1])
-                            # print(lpar._element.text)
-
                             title.append(get_last_non_empty_paragraph(paragraphs[i - offset + 1:][::-1])._element.text)
 
                             for match in TABLE_ID.findall(text):
@@ -157,12 +146,15 @@ class Parser:
                                 (
                                     id_ in text or
                                     table_type == TableType.FORM or
-                                    application_table_id_match is not None and application_table_id_match.group(1) in text and not text.endswith(application_table_id_match.group(1))
+                                    (
+                                        application_table_id_match is not None and
+                                        re.search(r'\s' + application_table_id_match.group(1) + r'[^\w]', text) is not None and
+                                        # application_table_id_match.group(1) in text and
+                                        not text.endswith(application_table_id_match.group(1))
+                                    )
                                 )
                             ):
                                 found_reference = True
-                                # print('found ref!')
-                                # break
 
                             if found_reference:
                                 context.append(text)
@@ -176,7 +168,6 @@ class Parser:
 
     def parse_file(self, source: str, get_destination: callable = None):
         document = Document(source)
-        # indent = self.json_indent
 
         if get_destination is None:
             stem = Path(source).stem
@@ -208,55 +199,6 @@ class Parser:
                     )
                 except IndexError:
                     print(f"Can't parse table {destination} due to index error")
-
-        # for i, table in enumerate(document.tables):
-        #     context = self.get_context(document, table)
-
-        #     if context is None:
-        #         print(f'No context for table {i} in file {source}')
-
-        #     parsed_rows = []
-        #     destination = get_destination(i)
-
-        #     if os.path.isfile(destination):
-        #         continue
-
-        #     try:
-        #         rows = table.rows
-        #     except:
-        #         print(f'Error when parsing table {i} from file {source}. Skipping...')
-        #         continue
-
-        #     skip_table = False
-
-        #     for row in rows:
-        #         parsed_cells = []
-
-        #         try:
-        #             cells = row.cells
-        #         except:
-        #             print(f'Error when parsing table {i} from file {source}. Skipping...')
-        #             skip_table = True
-        #             break
-
-        #         for cell in cells:
-        #             parsed_cells.append(Cell(normalize_spaces(cell.text)))
-
-        #         try:
-        #             parsed_rows.append(Cell.merge_horizontally(parsed_cells))
-        #         except:
-        #             print(f'Error when merging horizontally on file {source}')
-
-        #     if skip_table:
-        #         continue
-
-        #     try:
-        #         parsed_rows = Cell.merge_vertically(parsed_rows)
-        #     except:
-        #         print(f'Error when merging vertically on file {source}')
-
-        #     with open(destination, 'w') as file:
-        #         json.dump(Cell.serialize_rows(parsed_rows, context), file, indent = indent, ensure_ascii = False)
 
     def parse(self, source: str, destination: str):
         indent = self.json_indent
