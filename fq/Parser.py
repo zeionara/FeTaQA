@@ -139,21 +139,24 @@ class Parser:
                         else:
                             # print('>>', text)
 
-                            if NOT_APPLICATION_TABLE_ID.fullmatch(id_):
+                            if id_ is None or NOT_APPLICATION_TABLE_ID.fullmatch(id_):
                                 application_table_id_match = None
                             else:
-                                application_table_id_match = None if id_ is None else APPLICATION_TABLE_ID.fullmatch(id_)
+                                application_table_id_match = APPLICATION_TABLE_ID.fullmatch(id_)
 
                             # print(application_table_id_match)
 
                             if not normalized_text.startswith('табл') and (
                                 id_ is not None and
                                 (
-                                    table_type == TableType.TABLE and 'табл' in normalized_text or
+                                    table_type == TableType.TABLE and (
+                                        'табл' in normalized_text and there_are_paragraphs_with_full_id or
+                                        'приложен' in normalized_text and not there_are_paragraphs_with_full_id
+                                    ) or
                                     (
                                         table_type == TableType.APPLICATION or
                                         application_table_id_match is not None
-                                    ) and ('приложен' in normalized_text or 'табл' in normalized_text) or
+                                    ) and (not there_are_paragraphs_with_full_id and 'приложен' in normalized_text or there_are_paragraphs_with_full_id and 'табл' in normalized_text) or
                                     table_type == TableType.FORM and ' форм' in normalized_text
                                 ) and
                                 (
@@ -163,7 +166,7 @@ class Parser:
                                         application_table_id_match is not None and
                                         (
                                             not there_are_paragraphs_with_full_id and
-                                            re.search(r'\s' + application_table_id_match.group(1) + r'[^\w]', text) is not None
+                                            re.search(r'\s' + application_table_id_match.group(1) + r'[^\w\s]', text) is not None
                                         ) and
                                         # application_table_id_match.group(1) in text and
                                         not text.endswith(application_table_id_match.group(1))
@@ -171,6 +174,37 @@ class Parser:
                                 )
                             ):
                                 found_reference = True
+
+                            # if id_ == 'В.1' and 'таблице В.1':
+                            #     print(found_reference, text)
+                            #     print(there_are_paragraphs_with_full_id)
+                            #     print(
+                            #         table_type,
+                            #         application_table_id_match,
+                            #         there_are_paragraphs_with_full_id,
+                            #         'табл' in normalized_text,
+                            #         (
+                            #             table_type == TableType.TABLE and (
+                            #                 'табл' in normalized_text and there_are_paragraphs_with_full_id or
+                            #                 'приложен' in normalized_text and not there_are_paragraphs_with_full_id
+                            #             ),
+                            #             (
+                            #                 (
+                            #                     table_type == TableType.APPLICATION or
+                            #                     application_table_id_match is not None
+                            #                 ),
+                            #                 (not there_are_paragraphs_with_full_id and 'приложен' in normalized_text or there_are_paragraphs_with_full_id and 'табл' in normalized_text)
+                            #             ),
+                            #             table_type == TableType.FORM and ' форм' in normalized_text
+                            #         )
+                            #     )
+                            #     dd
+
+                            # if id_ == 'Д.1' and 'вестибюли, операционные, кассовые залы, залы ожидания и др.' in text:
+                            #     print(found_reference, table_type)
+                            #     print(text)
+                            #     print(there_are_paragraphs_with_full_id)
+                            #     dd
 
                             # if id_ == 'Г.1' and 'согласно таблице Г.2' in text:
                             #     print(found_reference, there_are_paragraphs_with_full_id)
