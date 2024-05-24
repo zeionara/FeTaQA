@@ -282,6 +282,7 @@ def view(source: str):
     for table in parser.parse_file(source):
         print('=' * 100)
         print(table.content)
+        # print(table.data)
         print(table.context)
 
 

@@ -192,48 +192,19 @@ class Parser:
                 return f'{stem}.{i:04d}'.replace('-', '_') + '.json'
 
         for i, table in list(enumerate(soup.find_all('w:tbl')))[1:]:
-            rows = []
-
-            for row in table.find_all('w:tr'):
-                cells = []
-
-                for cell in row.find_all('w:tc'):
-                    cells.append(drop_space_around_punctuation(normalize_spaces(cell.text)))
-
-                rows.append(cells)
-
-            # print(rows)
-
-            context, title, id_ = self.get_context(table.findPreviousSiblings('w:p'))
-
-            yield Table.from_lists(rows, get_destination(i), context, title, id_)
+            yield Table.from_soup(
+                table, get_destination(i), *self.get_context(
+                    table.findPreviousSiblings('w:p')
+                )
+            )
 
         # print(soup)
 
-        # for i, table in enumerate(document.tables):
-        #     if DEBUG:
-        #         context, title, id_ = self.get_context(document, table)
-
-        #         yield Table.from_docx(
-        #             table,
-        #             label = (destination := get_destination(i)),
-        #             context = context,
-        #             title = title,
-        #             id_ = id_
-        #         )
-        #     else:
-        #         try:
-        #             context, title, id_ = self.get_context(document, table)
-
-        #             yield Table.from_docx(
-        #                 table,
-        #                 label = (destination := get_destination(i)),
-        #                 context = context,
-        #                 title = title,
-        #                 id_ = id_
-        #             )
-        #         except IndexError:
-        #             print(f"Can't parse table {destination} due to index error")
+        # for i, table in list(enumerate(document.tables))[1:]:
+        #     yield Table.from_docx(
+        #         table,
+        #         label = get_destination(i)
+        #     )
 
     def parse(self, source: str, destination: str):
         indent = self.json_indent

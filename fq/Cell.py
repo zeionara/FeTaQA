@@ -149,6 +149,10 @@ class Placeholder:
         return self
 
     @property
+    def text(self):
+        return None
+
+    @property
     def n_rows(self):
         return self.origin.n_rows
 

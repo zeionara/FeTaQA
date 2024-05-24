@@ -4,9 +4,20 @@ from numpy import mean
 from docx.table import Table as TableDocx
 from bs4 import BeautifulSoup
 
-from .util import is_number
+from .util import is_number, drop_space_around_punctuation, normalize_spaces
 from .Cell import Cell
-from .util import normalize_spaces
+
+
+def get_aligned_cell(cells: list[Cell], col_offset: int):
+    n_cols = 0
+
+    for cell in cells:
+        if col_offset <= n_cols:
+            return cell
+
+        n_cols += cell.n_cols
+
+    return cell
 
 
 class Table:
@@ -20,7 +31,7 @@ class Table:
         return cls(json, label)
 
     @classmethod
-    def from_docx(cls, table: TableDocx, label: str, context: str, title: str, id_: str):
+    def from_docx(cls, table: TableDocx, label: str, context: str = None, title: str = None, id_: str = None):
         parsed_rows = []
 
         for row in table.rows:
@@ -37,18 +48,44 @@ class Table:
 
     @classmethod
     # def from_lists(cls, rows: list[list[str]], soup: BeautifulSoup, label: str, context: str = None, title: str = None, id_: str = None):
-    def from_lists(cls, rows: list[list[str]], label: str, context: str = None, title: str = None, id_: str = None):
-        parsed_rows = []
+    def from_soup(cls, soup: BeautifulSoup, label: str, context: str = None, title: str = None, id_: str = None):
+        rows = []
+        last_row = None
 
-        for row in rows:
-            parsed_cells = []
+        for row in soup.find_all('w:tr'):
+            cells = []
 
-            for cell in row:
-                parsed_cells.append(Cell(normalize_spaces(cell)))
+            col_offset = 0
 
-            parsed_rows.append(Cell.merge_horizontally(parsed_cells))
+            for cell in row.find_all('w:tc'):
+                if last_row is not None and (vertical_span := cell.find('w:vmerge')) is not None and vertical_span.get('w:val') != 'restart':
+                    cells.append(
+                        placeholder := get_aligned_cell(last_row, col_offset).make_placeholder()
+                    )
 
-        return cls(Cell.serialize_rows(parsed_rows, context, title, id_), label)
+                    (origin := placeholder.origin).n_rows += 1
+                    col_offset += origin.n_cols
+                else:
+                    n_cols = 1
+
+                    if (horizontal_span := cell.find('w:gridspan')) is not None and (span_size := horizontal_span.get('w:val')) is not None:
+                        n_cols = int(span_size)
+
+                    col_offset += n_cols
+
+                    cells.append(
+                        Cell(
+                            drop_space_around_punctuation(
+                                normalize_spaces(cell.text)
+                            ),
+                            n_cols = n_cols
+                        )
+                    )
+
+            last_row = cells
+            rows.append(cells)
+
+        return cls(Cell.serialize_rows(rows, context, title, id_), label)
 
     def to_json(self, path: str, indent: int):
         with open(path, 'w') as file:
