@@ -5,11 +5,10 @@ from enum import Enum
 
 from tqdm import tqdm
 from docx.api import Document
-# from docx.table import Table
 from bs4 import BeautifulSoup
 
-from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_not_empty
-from .util.soup import get_last_non_empty_element, get_first_non_empty_element
+from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation
+from .util.soup import get_first_non_empty_element
 from .Table import Table
 
 
@@ -19,8 +18,6 @@ TABLE_ID = re.compile('[A-ZА-Я0-9.Ё]+')
 APPLICATION_ID = re.compile('[A-ZА-ЯЁ]+')
 APPLICATION_TABLE_ID = re.compile('([A-ZА-ЯЁ]+).+')
 NOT_APPLICATION_TABLE_ID = re.compile(r'\w+')
-
-DEBUG = False
 
 
 def join_paragraphs(paragraphs: list):
@@ -51,16 +48,8 @@ class Parser:
         self.context_window_size = context_window_size
         self.json_indent = json_indent
 
-    # def get_context(self, table: list[list[str]], table_element, paragrphs: list[str]):
     def get_context(self, paragraphs):
         window = self.context_window_size
-
-        # first_paragraph_element_after_the_table = table.next_sibling_paragraph
-
-        # last_non_empty_paragraph = None
-
-        # if first_paragraph_element_after_the_table is None:  # Then probably the table is the last element of the document
-        #     last_non_empty_paragraph = table.previous_sibling_paragraph
 
         context = []
 
@@ -164,11 +153,11 @@ class Parser:
                         context.append(text)
                         window -= 1
 
-                        if window < 0:
+                        if window < 1:
                             break
 
         # print('Context:')
-        # print(context)
+        # print(len(context))
         # print('Title:')
         # print(title)
 
@@ -178,12 +167,6 @@ class Parser:
         document = Document(source)
 
         soup = BeautifulSoup(document._element.xml, 'lxml')
-
-        # paragraphs = [
-        #     drop_space_around_punctuation(normalize_spaces(paragraph.text))
-        #     for paragraph in soup.find_all('w:p')
-        #     if len(paragraph) > 0
-        # ]
 
         if get_destination is None:
             stem = Path(source).stem
@@ -197,14 +180,6 @@ class Parser:
                     table.findPreviousSiblings('w:p')
                 )
             )
-
-        # print(soup)
-
-        # for i, table in list(enumerate(document.tables))[1:]:
-        #     yield Table.from_docx(
-        #         table,
-        #         label = get_destination(i)
-        #     )
 
     def parse(self, source: str, destination: str):
         indent = self.json_indent

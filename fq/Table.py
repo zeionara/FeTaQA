@@ -47,7 +47,6 @@ class Table:
         return cls(Cell.serialize_rows(parsed_rows, context, title, id_), label)
 
     @classmethod
-    # def from_lists(cls, rows: list[list[str]], soup: BeautifulSoup, label: str, context: str = None, title: str = None, id_: str = None):
     def from_soup(cls, soup: BeautifulSoup, label: str, context: str = None, title: str = None, id_: str = None):
         rows = []
         last_row = None
