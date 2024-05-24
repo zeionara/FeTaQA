@@ -91,6 +91,10 @@ class Table:
             json.dump(self.data, file, indent = indent, ensure_ascii = False)
 
     @property
+    def json(self):
+        return self.data
+
+    @property
     def n_chars(self):
         return len(json.dumps(self.data, ensure_ascii = False, indent = 2))
 
