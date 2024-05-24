@@ -2,6 +2,7 @@ import json
 
 from numpy import mean
 from docx.table import Table as TableDocx
+from bs4 import BeautifulSoup
 
 from .util import is_number
 from .Cell import Cell
@@ -34,6 +35,21 @@ class Table:
 
         return cls(Cell.serialize_rows(parsed_rows, context, title, id_), label)
 
+    @classmethod
+    # def from_lists(cls, rows: list[list[str]], soup: BeautifulSoup, label: str, context: str = None, title: str = None, id_: str = None):
+    def from_lists(cls, rows: list[list[str]], label: str, context: str = None, title: str = None, id_: str = None):
+        parsed_rows = []
+
+        for row in rows:
+            parsed_cells = []
+
+            for cell in row:
+                parsed_cells.append(Cell(normalize_spaces(cell)))
+
+            parsed_rows.append(Cell.merge_horizontally(parsed_cells))
+
+        return cls(Cell.serialize_rows(parsed_rows, context, title, id_), label)
+
     def to_json(self, path: str, indent: int):
         with open(path, 'w') as file:
             json.dump(self.data, file, indent = indent, ensure_ascii = False)
@@ -52,6 +68,40 @@ class Table:
     @property
     def context(self):
         return self.data.get('context')
+
+    @property
+    def content(self):
+        return [
+            [
+                cell.get('text')
+                for cell in row
+            ]
+            for row in self.data['rows']
+        ]
+
+    @property
+    def next_sibling_paragraphs(self):
+        soup = self.data.get('soup')
+
+        return None if soup is None else soup.findNextSiblings('w:p')
+
+    @property
+    def previous_sibling_paragraphs(self):
+        soup = self.data.get('soup')
+
+        return None if soup is None else soup.findPreviousSiblings('w:p')
+
+    @property
+    def next_sibling_paragraph(self):
+        for item in self.next_sibling_paragraphs:
+            if (text := item.text) is not None and len(text.strip()) > 0:
+                return item
+
+    @property
+    def previous_sibling_paragraph(self):
+        for item in self.previous_sibling_paragraphs:
+            if (text := item.text) is not None and len(text.strip()) > 0:
+                return item
 
 
 class TableStats:
