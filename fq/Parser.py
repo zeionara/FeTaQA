@@ -180,7 +180,7 @@ class Parser:
             def get_destination(i: int):
                 return f'{stem}.{i:04d}'.replace('-', '_') + '.json'
 
-        for i, table in list(enumerate(soup.find_all('w:tbl')))[1:]:
+        for i, table in list(enumerate(soup.find_all('w:tbl'))):
             yield Table.from_soup(
                 table, get_destination(i), *self.get_context(
                     table.findPreviousSiblings('w:p')
