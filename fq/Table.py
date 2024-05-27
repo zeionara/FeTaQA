@@ -1,4 +1,5 @@
 import json
+from typing import ClassVar
 
 from numpy import mean
 from docx.table import Table as TableDocx
@@ -6,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from .util import is_number, drop_space_around_punctuation, normalize_spaces
 from .Cell import Cell
+from .Item import Item
 
 
 def get_aligned_cell(cells: list[Cell], col_offset: int):
@@ -20,7 +22,9 @@ def get_aligned_cell(cells: list[Cell], col_offset: int):
     return cell
 
 
-class Table:
+class Table(Item):
+    type_label: ClassVar[str] = 'table'
+
     def __init__(self, data: dict, label: str):
         self.data = data
         self.label = label
