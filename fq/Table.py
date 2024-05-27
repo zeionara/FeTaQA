@@ -1,5 +1,6 @@
 import json
 from typing import ClassVar
+import re
 
 from numpy import mean
 from docx.table import Table as TableDocx
@@ -8,6 +9,9 @@ from bs4 import BeautifulSoup
 from .util import is_number, drop_space_around_punctuation, normalize_spaces
 from .Cell import Cell
 from .Item import Item
+
+
+NOTE_PATTERN = re.compile(r'([*]+)\s+([^*]+[^*\s])')
 
 
 def get_aligned_cell(cells: list[Cell], col_offset: int):
@@ -88,6 +92,25 @@ class Table(Item):
             last_row = cells
             rows.append(cells)
 
+        # Parse notes - just add the note text in brackets after the original cell content without removing the anchor symbol(s)
+
+        notes = {}
+
+        # if rows[0][0].text.startswith('Сооружения'):
+
+        for row in rows:
+            for cell in row:
+                if cell.text is not None:
+                    for note in NOTE_PATTERN.findall(cell.text):
+                        notes[note[0]] = note[1]
+
+        for row in rows:
+            for cell in row:
+                for key in sorted(notes.keys(), key = lambda key: len(key), reverse = True):
+                    if cell.text is not None and cell.text.endswith(key):
+                        # cell.text = f'{cell.text.strip()[:-(len(key) + 2)]} ({value})'
+                        cell.text = normalize_spaces(f'{cell.text} ({notes[key]})')
+
         return cls(Cell.serialize_rows(rows, context, title, id_), label)
 
     def to_json(self, path: str, indent: int):
@@ -146,6 +169,14 @@ class Table(Item):
         for item in self.previous_sibling_paragraphs:
             if (text := item.text) is not None and len(text.strip()) > 0:
                 return item
+
+    @property
+    def title(self):
+        return self.data.get('title')
+
+    @property
+    def id(self):
+        return self.data.get('id')
 
 
 class TableStats:
