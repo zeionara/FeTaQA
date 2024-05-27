@@ -13,18 +13,25 @@ from .Table import Table
 
 
 PARAGRAPH_SEP_PLACEHOLDER = '__PARAGRAPH_SEP__'
+PARAGRAPH_SEP_DISTILLATION_PATTERN = re.compile(rf'\s*{PARAGRAPH_SEP_PLACEHOLDER}\s*')
 PARAGRAPH_SEP = '\n\n'
 TABLE_ID = re.compile('[A-ZА-Я0-9.Ё]+')
 APPLICATION_ID = re.compile('[A-ZА-ЯЁ]+')
 APPLICATION_TABLE_ID = re.compile('([A-ZА-ЯЁ]+).+')
 NOT_APPLICATION_TABLE_ID = re.compile(r'\w+')
+EXTERNAL_APPLICATION_REFERENCE_PATTERN = re.compile(r'.+сп\s+[0-9.]+\.?$')
 
 
 def join_paragraphs(paragraphs: list):
     if len(paragraphs) < 1:
         return None
 
-    return normalize_spaces(PARAGRAPH_SEP_PLACEHOLDER.join(paragraphs)).replace(PARAGRAPH_SEP_PLACEHOLDER, PARAGRAPH_SEP)
+    return PARAGRAPH_SEP_DISTILLATION_PATTERN.sub(
+        PARAGRAPH_SEP_PLACEHOLDER,
+        normalize_spaces(
+            PARAGRAPH_SEP_PLACEHOLDER.join(paragraphs)
+        )
+    ).replace(PARAGRAPH_SEP_PLACEHOLDER, PARAGRAPH_SEP)
 
 
 def extract_id(id_, pattern, text: str):
@@ -137,6 +144,8 @@ class Parser:
                             ) and (
                                 not there_are_paragraphs_with_full_id and 'приложен' in normalized_text or
                                 there_are_paragraphs_with_full_id and 'табл' in normalized_text
+                            ) and (
+                                EXTERNAL_APPLICATION_REFERENCE_PATTERN.fullmatch(normalized_text) is None
                             ) or
                             table_type == TableType.FORM and ' форм' in normalized_text
                         ) and
@@ -166,6 +175,7 @@ class Parser:
         # print(len(context))
         # print('Title:')
         # print(title)
+        # print(join_paragraphs(title))
 
         return join_paragraphs(context[::-1]), join_paragraphs(title), id_
 
