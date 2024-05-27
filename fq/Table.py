@@ -6,7 +6,7 @@ from numpy import mean
 from docx.table import Table as TableDocx
 from bs4 import BeautifulSoup
 
-from .util import is_number, drop_space_around_punctuation, normalize_spaces
+from .util import is_number, drop_space_around_punctuation, normalize_spaces, is_bold
 from .Cell import Cell
 from .Item import Item
 
@@ -58,6 +58,17 @@ class Table(Item):
     def from_soup(cls, soup: BeautifulSoup, label: str, context: str = None, title: str = None, id_: str = None):
         rows = []
         last_row = None
+        bold_text = [] if title is None else None
+
+        if bold_text is not None:
+            for fragment in soup.find_all('w:r'):
+                if is_bold(fragment):
+                    bold_text.append(fragment.text)
+
+            title = normalize_spaces(' '.join(bold_text))
+
+            if title.endswith(':'):
+                title = title[:-1]
 
         for row in soup.find_all('w:tr'):
             cells = []
@@ -65,6 +76,7 @@ class Table(Item):
             col_offset = 0
 
             for cell in row.find_all('w:tc'):
+
                 if last_row is not None and (vertical_span := cell.find('w:vmerge')) is not None and vertical_span.get('w:val') != 'restart':
                     cells.append(
                         placeholder := get_aligned_cell(last_row, col_offset).make_placeholder()
