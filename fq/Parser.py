@@ -94,10 +94,6 @@ class Parser:
                         last_paragraph = get_first_non_empty_element(previous_paragraphs)
                         table_type = TableType.APPLICATION
 
-                        if is_bold(paragraph):
-                            print(paragraph)
-                            dd
-
                         if is_bold(paragraph) and is_bold(last_paragraph) or not is_bold(paragraph) and not is_bold(last_paragraph):
                             title.append(last_paragraph._element.text)
                     else:
