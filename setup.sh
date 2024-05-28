@@ -31,10 +31,9 @@ conda create --name tables python=3.12 -y
 conda activate tables
 
 conda install python-lsp-server -y
-conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia -y
+conda install tqdm numpy matplotlib click -y
 
-pip install transformers nltk numpy datasets chardet transformers accelerate sacrebleu bert_score 'camelot-py[cv]' python-docx free-proxy scikit-learn
-pip install git+https://github.com/google-research/bleurt.git
+pip install python-docx beautifulsoup4 requests scikit-learn pandas
 
 # To install ghostscript see: https://ghostscript.readthedocs.io/en/gs10.03.0/Install.html and https://ghostscript.com/docs/9.55.0/Install.htm. Basically:
 #
