@@ -7,7 +7,7 @@ from tqdm import tqdm
 from docx.api import Document
 from bs4 import BeautifulSoup
 
-from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation
+from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_h1
 from .util.soup import get_first_non_empty_element
 from .Table import Table
 
@@ -101,8 +101,12 @@ class Parser:
                         last_paragraph = get_first_non_empty_element(previous_paragraphs)
                         table_type = TableType.APPLICATION
 
-                        if is_bold(paragraph) and is_bold(last_paragraph) or not is_bold(paragraph) and not is_bold(last_paragraph):
-                            title.append(last_paragraph._element.text)
+                        if (
+                            is_bold(paragraph) and (is_bold(last_paragraph) or is_h1(last_paragraph))
+                        ) or (
+                            not is_bold(paragraph) and not (is_bold(last_paragraph) or is_h1(last_paragraph))
+                        ):
+                            title.append(drop_space_around_punctuation(normalize_spaces(last_paragraph.text)))
                     else:
                         table_type = TableType.TABLE
                 elif id_ is None and normalized_text.startswith('форма'):
