@@ -190,6 +190,29 @@ class Table(Item):
     def id(self):
         return self.data.get('id')
 
+    @property
+    def isotropic(self):
+        row_length = None
+
+        for row in self.data['rows']:
+            if row_length is None:
+                row_length = len(row)
+                continue
+
+            if len(row) != row_length or any(cell.get('text') is None for cell in row):
+                return False
+
+        return True
+
+    @property
+    def as_text(self):
+        lines = []
+
+        for row in self.data['rows']:
+            lines.append(' '.join(cell['text'] for cell in row))
+
+        return '\n'.join(lines)
+
 
 class TableStats:
     def __init__(self, table: Table):

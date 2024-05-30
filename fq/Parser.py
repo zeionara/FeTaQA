@@ -101,10 +101,12 @@ class Parser:
                         last_paragraph = get_first_non_empty_element(previous_paragraphs)
                         table_type = TableType.APPLICATION
 
-                        if (
-                            is_bold(paragraph) and (is_bold(last_paragraph) or is_h1(last_paragraph))
-                        ) or (
-                            not is_bold(paragraph) and not (is_bold(last_paragraph) or is_h1(last_paragraph))
+                        if last_paragraph is not None and (
+                            (
+                                is_bold(paragraph) and (is_bold(last_paragraph) or is_h1(last_paragraph))
+                            ) or (
+                                not is_bold(paragraph) and not (is_bold(last_paragraph) or is_h1(last_paragraph))
+                            )
                         ):
                             title.append(drop_space_around_punctuation(normalize_spaces(last_paragraph.text)))
                     else:
