@@ -112,7 +112,7 @@ class Cell:
         }
 
     @staticmethod
-    def serialize_rows(rows: list[list[Cell]], context: str = None, title: str = None, id_: str = None):
+    def serialize_rows(rows: list[list[Cell]], context: list = None, title: str = None, id_: str = None):
         data = {
             'rows': [
                 [
@@ -124,7 +124,7 @@ class Cell:
         }
 
         if context is not None:
-            data['context'] = context
+            data['context'] = [paragraph.serialize() for paragraph in context]
 
         if title is not None:
             data['title'] = title

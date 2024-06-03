@@ -1,5 +1,6 @@
 import json
 from typing import ClassVar
+from dataclasses import dataclass
 import re
 
 from numpy import mean
@@ -26,6 +27,15 @@ def get_aligned_cell(cells: list[Cell], col_offset: int):
     return cell
 
 
+@dataclass
+class Paragraph:
+    index: int
+    text: str
+
+    def serialize(self):
+        return {'index': self.index, 'text': self.text}
+
+
 class Table(Item):
     type_label: ClassVar[str] = 'table'
 
@@ -39,7 +49,7 @@ class Table(Item):
         return cls(json, label)
 
     @classmethod
-    def from_docx(cls, table: TableDocx, label: str, context: str = None, title: str = None, id_: str = None):
+    def from_docx(cls, table: TableDocx, label: str, context: list[Paragraph] = None, title: str = None, id_: str = None):
         parsed_rows = []
 
         for row in table.rows:
@@ -55,7 +65,7 @@ class Table(Item):
         return cls(Cell.serialize_rows(parsed_rows, context, title, id_), label)
 
     @classmethod
-    def from_soup(cls, soup: BeautifulSoup, label: str, context: str = None, title: str = None, id_: str = None):
+    def from_soup(cls, soup: BeautifulSoup, label: str, context: list[Paragraph] = None, title: str = None, id_: str = None):
         rows = []
         last_row = None
         bold_text = [] if title is None else None
@@ -76,7 +86,6 @@ class Table(Item):
             col_offset = 0
 
             for cell in row.find_all('w:tc'):
-
                 if last_row is not None and (vertical_span := cell.find('w:vmerge')) is not None and vertical_span.get('w:val') != 'restart':
                     cells.append(
                         placeholder := get_aligned_cell(last_row, col_offset).make_placeholder()
@@ -147,6 +156,7 @@ class Table(Item):
     @property
     def context(self):
         return self.data.get('context')
+        # return '\n'.join(entry['text'] for entry in self.data.get('context'))
 
     @property
     def content(self):

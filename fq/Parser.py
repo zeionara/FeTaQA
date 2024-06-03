@@ -2,6 +2,7 @@ import os
 import re
 from pathlib import Path
 from enum import Enum
+from dataclasses import dataclass
 
 from tqdm import tqdm
 from docx.api import Document
@@ -9,7 +10,7 @@ from bs4 import BeautifulSoup
 
 from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_h1
 from .util.soup import get_first_non_empty_element
-from .Table import Table
+from .Table import Table, Paragraph
 
 
 PARAGRAPH_SEP_PLACEHOLDER = '__PARAGRAPH_SEP__'
@@ -25,6 +26,9 @@ EXTERNAL_APPLICATION_REFERENCE_PATTERN = re.compile(r'.+сп\s+[0-9.]+\.?$')
 def join_paragraphs(paragraphs: list):
     if len(paragraphs) < 1:
         return None
+
+    if not isinstance(paragraphs[0], str):
+        paragraphs = [f'{paragraph.text} [{paragraph.index}]' for paragraph in paragraphs]
 
     return PARAGRAPH_SEP_DISTILLATION_PATTERN.sub(
         PARAGRAPH_SEP_PLACEHOLDER,
@@ -171,7 +175,7 @@ class Parser:
                         found_reference = True
 
                     if found_reference:
-                        context.append(text)
+                        context.append(Paragraph(j, text))
                         window -= 1
 
                         if window < 1:
@@ -183,7 +187,8 @@ class Parser:
         # print(title)
         # print(join_paragraphs(title))
 
-        return join_paragraphs(context[::-1]), join_paragraphs(title), id_
+        # return join_paragraphs(context[::-1]), join_paragraphs(title), id_
+        return context[::-1], join_paragraphs(title), id_
 
     def parse_file(self, source: str, get_destination: callable = None):
         document = Document(source)
