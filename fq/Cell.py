@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import uuid
 
+from .TableType import TableType
+
 
 class Cell:
     def __init__(self, text: str, n_rows = 1, n_cols = 1):
@@ -112,7 +114,7 @@ class Cell:
         }
 
     @staticmethod
-    def serialize_rows(rows: list[list[Cell]], context: str = None, title: str = None, id_: str = None):
+    def serialize_rows(rows: list[list[Cell]], context: str = None, title: str = None, id_: str = None, table_type: TableType = None):
         data = {
             'rows': [
                 [
@@ -131,6 +133,9 @@ class Cell:
 
         if id_ is not None:
             data['id'] = id_
+
+        if table_type is not None:
+            data['table-type'] = table_type
 
         return data
 

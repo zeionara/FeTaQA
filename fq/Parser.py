@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_h1
 from .util.soup import get_first_non_empty_element
 from .Table import Table
+from .TableType import TableType
 
 
 PARAGRAPH_SEP_PLACEHOLDER = '__PARAGRAPH_SEP__'
@@ -44,27 +45,87 @@ def extract_id(id_, pattern, text: str):
     return id_
 
 
-class TableType(Enum):
-    TABLE = 'table'
-    APPLICATION = 'application'
-    FORM = 'form'
-
-
 class Parser:
     def __init__(self, context_window_size: int = 5, json_indent: int = 2):
         self.context_window_size = context_window_size
         self.json_indent = json_indent
 
-    def get_context(self, paragraphs):
-        window = self.context_window_size
+    def has_reference(self, text: str, table: Table):
+        id_ = table.id
+        table_type = TableType(table.type)
 
-        context = []
+        if id_ is None or NOT_APPLICATION_TABLE_ID.fullmatch(id_):
+            application_table_id_match = None
+        else:
+            application_table_id_match = APPLICATION_TABLE_ID.fullmatch(id_)
+
+        normalized_text = text.lower().strip()
+
+        return id_ is not None and not normalized_text.startswith('табл') and (  # text doesn't look like table description
+            (
+                table_type == TableType.TABLE and 'табл' in normalized_text or  # either table looks like a regular table and there is a stem 'tabl' in the given text
+                table_type == TableType.FORM and ' форм' in normalized_text or  # either table looks like a form and there is a stem 'form' in the given text
+                (
+                    table_type == TableType.APPLICATION or
+                    application_table_id_match is not None
+                ) and (
+                    'приложен' in normalized_text or 'табл' in normalized_text
+                ) and (
+                    EXTERNAL_APPLICATION_REFERENCE_PATTERN.fullmatch(normalized_text) is None
+                )  # either table looks like a kind of application, and there is a stem 'applic' in the given text
+            ) and
+            (
+                id_ in text or  # either there is a complete id in the text
+                table_type == TableType.FORM or  # either the table looks like a form
+                (
+                    application_table_id_match is not None and
+                    (
+                        re.search(r'\s' + application_table_id_match.group(1) + r'[^\w\s]', text) is not None
+                    ) and
+                    not text.endswith(application_table_id_match.group(1))
+                )  # either there is an imcomplete reference (to the application which contains the table)
+            )
+        )
+
+        # return not normalized_text.startswith('табл') and (
+        #     id_ is not None and
+        #     (
+        #         table_type == TableType.TABLE and (
+        #             'табл' in normalized_text and there_are_paragraphs_with_full_id or
+        #             'приложен' in normalized_text and not there_are_paragraphs_with_full_id
+        #         ) or
+        #         (
+        #             table_type == TableType.APPLICATION or
+        #             application_table_id_match is not None
+        #         ) and (
+        #             not there_are_paragraphs_with_full_id and 'приложен' in normalized_text or
+        #             there_are_paragraphs_with_full_id and 'табл' in normalized_text
+        #         ) and (
+        #             EXTERNAL_APPLICATION_REFERENCE_PATTERN.fullmatch(normalized_text) is None
+        #         ) or
+        #         table_type == TableType.FORM and ' форм' in normalized_text
+        #     ) and
+        #     (
+        #         id_ in text or
+        #         table_type == TableType.FORM or
+        #         (
+        #             application_table_id_match is not None and
+        #             (
+        #                 not there_are_paragraphs_with_full_id and
+        #                 re.search(r'\s' + application_table_id_match.group(1) + r'[^\w\s]', text) is not None
+        #             ) and
+        #             not text.endswith(application_table_id_match.group(1))
+        #         )
+        #     )
+        # )
+
+    def get_title(self, paragraphs):
+        # window = self.context_window_size
 
         title = []
         id_ = None
         table_type = None
-        found_reference = False
-        there_are_paragraphs_with_full_id = False
+        # full_reference_exists = False
 
         for j, paragraph in enumerate(paragraphs):
             text = drop_space_around_punctuation(normalize_spaces(paragraph.text))
@@ -94,7 +155,7 @@ class Parser:
                             except ValueError:
                                 pass
 
-                    there_are_paragraphs_with_full_id = any(id_ in paragraph.text for paragraph in previous_paragraphs)
+                    # there_are_paragraphs_with_full_id = any(id_ in paragraph.text for paragraph in previous_paragraphs)
                     application_table_id_match = APPLICATION_TABLE_ID.fullmatch(id_)
 
                     if application_table_id_match is not None and text.endswith(id_):
@@ -131,59 +192,8 @@ class Parser:
                     id_ = extract_id(id_, APPLICATION_ID, text)
 
                     table_type = TableType.APPLICATION
-                else:
-                    if id_ is None or NOT_APPLICATION_TABLE_ID.fullmatch(id_):
-                        application_table_id_match = None
-                    else:
-                        application_table_id_match = APPLICATION_TABLE_ID.fullmatch(id_)
 
-                    if not normalized_text.startswith('табл') and (
-                        id_ is not None and
-                        (
-                            table_type == TableType.TABLE and (
-                                'табл' in normalized_text and there_are_paragraphs_with_full_id or
-                                'приложен' in normalized_text and not there_are_paragraphs_with_full_id
-                            ) or
-                            (
-                                table_type == TableType.APPLICATION or
-                                application_table_id_match is not None
-                            ) and (
-                                not there_are_paragraphs_with_full_id and 'приложен' in normalized_text or
-                                there_are_paragraphs_with_full_id and 'табл' in normalized_text
-                            ) and (
-                                EXTERNAL_APPLICATION_REFERENCE_PATTERN.fullmatch(normalized_text) is None
-                            ) or
-                            table_type == TableType.FORM and ' форм' in normalized_text
-                        ) and
-                        (
-                            id_ in text or
-                            table_type == TableType.FORM or
-                            (
-                                application_table_id_match is not None and
-                                (
-                                    not there_are_paragraphs_with_full_id and
-                                    re.search(r'\s' + application_table_id_match.group(1) + r'[^\w\s]', text) is not None
-                                ) and
-                                not text.endswith(application_table_id_match.group(1))
-                            )
-                        )
-                    ):
-                        found_reference = True
-
-                    if found_reference:
-                        context.append(text)
-                        window -= 1
-
-                        if window < 1:
-                            break
-
-        # print('Context:')
-        # print(len(context))
-        # print('Title:')
-        # print(title)
-        # print(join_paragraphs(title))
-
-        return join_paragraphs(context[::-1]), join_paragraphs(title), id_
+        return join_paragraphs(title), id_, table_type
 
     def parse_file(self, source: str, get_destination: callable = None):
         document = Document(source)
@@ -198,7 +208,7 @@ class Parser:
 
         for i, table in list(enumerate(soup.find_all('w:tbl'))):
             yield Table.from_soup(
-                table, get_destination(i), *self.get_context(
+                table, get_destination(i), *self.get_title(
                     table.findPreviousSiblings('w:p')
                 )
             )

@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from .util import is_number, drop_space_around_punctuation, normalize_spaces, is_bold
 from .Cell import Cell
 from .Item import Item
+from .TableType import TableType
 
 
 NOTE_PATTERN = re.compile(r'([*]+)\s+([^*]+[^*\s])')
@@ -39,7 +40,7 @@ class Table(Item):
         return cls(json, label)
 
     @classmethod
-    def from_docx(cls, table: TableDocx, label: str, context: str = None, title: str = None, id_: str = None):
+    def from_docx(cls, table: TableDocx, label: str, title: str = None, id_: str = None, table_type: TableType = None, context: str = None):
         parsed_rows = []
 
         for row in table.rows:
@@ -52,10 +53,10 @@ class Table(Item):
 
         parsed_rows = Cell.merge_vertically(parsed_rows)
 
-        return cls(Cell.serialize_rows(parsed_rows, context, title, id_), label)
+        return cls(Cell.serialize_rows(parsed_rows, context, title, id_, table_type), label)
 
     @classmethod
-    def from_soup(cls, soup: BeautifulSoup, label: str, context: str = None, title: str = None, id_: str = None):
+    def from_soup(cls, soup: BeautifulSoup, label: str, title: str = None, id_: str = None, table_type: TableType = None, context: str = None):
         rows = []
         last_row = None
         bold_text = [] if title is None else None
@@ -123,7 +124,7 @@ class Table(Item):
                         # cell.text = f'{cell.text.strip()[:-(len(key) + 2)]} ({value})'
                         cell.text = normalize_spaces(f'{cell.text} ({notes[key]})')
 
-        return cls(Cell.serialize_rows(rows, context, title, id_), label)
+        return cls(Cell.serialize_rows(rows, context, title, id_, table_type), label)
 
     def to_json(self, path: str, indent: int):
         with open(path, 'w') as file:
