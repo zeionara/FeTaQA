@@ -119,10 +119,13 @@ class Parser:
         #     )
         # )
 
-    def get_title(self, paragraphs):
+    def get_title(self, paragraphs, verbose: bool = False, title: str = None):
         # window = self.context_window_size
+        # section_title = title
 
         title = []
+        non_empty_paragraphs = []
+
         id_ = None
         table_type = None
         # full_reference_exists = False
@@ -130,8 +133,18 @@ class Parser:
         for j, paragraph in enumerate(paragraphs):
             text = drop_space_around_punctuation(normalize_spaces(paragraph.text))
 
-            previous_paragraphs = paragraph.findPreviousSiblings('w:p')
-            next_paragraphs = paragraph.findNextSiblings('w:p')
+            if len(text) > 0:
+                non_empty_paragraphs.append(text)
+
+            try:
+                previous_paragraphs = paragraph.findPreviousSiblings('w:p')
+            except AttributeError:
+                previous_paragraphs = paragraphs[:j]
+
+            try:
+                next_paragraphs = paragraph.findNextSiblings('w:p')
+            except AttributeError:
+                next_paragraphs = paragraphs[j + 1:]
 
             if len(text.strip()) > 0:
                 normalized_text = text.lower().strip()
@@ -192,6 +205,11 @@ class Parser:
                     id_ = extract_id(id_, APPLICATION_ID, text)
 
                     table_type = TableType.APPLICATION
+
+        if 0 < len(non_empty_paragraphs) < 2 and len(title) < 1:
+            # title = [section_title, *non_empty_paragraphs]
+            title = non_empty_paragraphs
+            table_type = TableType.TABLE
 
         return join_paragraphs(title), id_, table_type
 

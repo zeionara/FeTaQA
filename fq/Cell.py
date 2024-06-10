@@ -135,7 +135,7 @@ class Cell:
             data['id'] = id_
 
         if table_type is not None:
-            data['table-type'] = table_type
+            data['type'] = table_type
 
         return data
 

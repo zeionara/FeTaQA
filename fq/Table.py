@@ -150,6 +150,10 @@ class Table(Item):
         return self.data.get('context')
 
     @property
+    def type(self):
+        return self.data.get('type')
+
+    @property
     def content(self):
         return [
             [
