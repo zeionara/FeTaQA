@@ -35,6 +35,8 @@ class Table(Item):
         self.label = label
         self._stats = None
 
+        self.contexts = None
+
     @classmethod
     def from_json(cls, json: dict, label: str):
         return cls(json, label)
@@ -132,7 +134,14 @@ class Table(Item):
 
     @property
     def json(self):
-        return self.data
+        context = self.context
+
+        data = self.data
+
+        if context is not None:
+            data['context'] = context.json
+
+        return data
 
     @property
     def n_chars(self):
