@@ -30,48 +30,56 @@ def get_aligned_cell(cells: list[Cell], col_offset: int):
 class Table(Item):
     type_label: ClassVar[str] = 'table'
 
-    def __init__(self, data: dict, label: str):
-        self.data = data
+    def __init__(self, soup: BeautifulSoup, rows: list[list[Cell]], label: str):
+        self.rows = rows
+        self.soup = soup
         self.label = label
-        self._stats = None
 
         self.contexts = None
+        self.title = None
+        self.id = None
+        self.type = None
+
+        self._stats = None
 
     @classmethod
-    def from_json(cls, json: dict, label: str):
-        return cls(json, label)
+    def from_json(cls, json: dict, make_context: callable, label: str = None):
+        if label is None:
+            label = json.get('label')
 
-    @classmethod
-    def from_docx(cls, table: TableDocx, label: str, title: str = None, id_: str = None, table_type: TableType = None, context: str = None):
-        parsed_rows = []
+        xml = json.get('xml')
+        rows = Cell.deserialize_rows(json['rows'])
+        table = cls(BeautifulSoup(xml, 'lxml'), rows = rows, label = label)
 
-        for row in table.rows:
-            parsed_cells = []
+        table.id = json.get('id')
+        table.type = TableType(json.get('type'))
+        table.title = json.get('title')
+        table.contexts = [
+            make_context(context)
+            for context in json.get('contexts')
+        ]
 
-            for cell in row.cells:
-                parsed_cells.append(Cell(normalize_spaces(cell.text)))
+        return table
 
-            parsed_rows.append(Cell.merge_horizontally(parsed_cells))
-
-        parsed_rows = Cell.merge_vertically(parsed_rows)
-
-        return cls(Cell.serialize_rows(parsed_rows, context, title, id_, table_type), label)
-
-    @classmethod
-    def from_soup(cls, soup: BeautifulSoup, label: str, title: str = None, id_: str = None, table_type: TableType = None, context: str = None):
-        rows = []
-        last_row = None
-        bold_text = [] if title is None else None
+    def set_title(self, text: str = None):
+        bold_text = [] if text is None else None
 
         if bold_text is not None:
-            for fragment in soup.find_all('w:r'):
+            for fragment in self.soup.find_all('w:r'):
                 if is_bold(fragment):
                     bold_text.append(fragment.text)
 
-            title = normalize_spaces(' '.join(bold_text))
+            text = normalize_spaces(' '.join(bold_text))
 
-            if title.endswith(':'):
-                title = title[:-1]
+            if text.endswith(':'):
+                text = text[:-1]
+
+        self.title = text
+
+    @classmethod
+    def from_soup(cls, soup: BeautifulSoup, label: str):
+        rows = []
+        last_row = None
 
         for row in soup.find_all('w:tr'):
             cells = []
@@ -126,26 +134,39 @@ class Table(Item):
                         # cell.text = f'{cell.text.strip()[:-(len(key) + 2)]} ({value})'
                         cell.text = normalize_spaces(f'{cell.text} ({notes[key]})')
 
-        return cls(Cell.serialize_rows(rows, context, title, id_, table_type), label)
+        return cls(soup, rows, label)
 
-    def to_json(self, path: str, indent: int):
-        with open(path, 'w') as file:
-            json.dump(self.data, file, indent = indent, ensure_ascii = False)
+    def to_json(self, path: str = None, indent: int = 2):
+        data = Cell.serialize_rows(self.rows)
 
-    @property
-    def json(self):
-        context = self.context
+        data['label'] = self.label
+        data['xml'] = str(self.soup)
 
-        data = self.data
+        if (contexts := self.contexts) is not None:
+            data['contexts'] = [context.json for context in contexts]
 
-        if context is not None:
-            data['context'] = context.json
+        if (title := self.title) is not None:
+            data['title'] = title
+
+        if (id_ := self.id) is not None:
+            data['id'] = id_
+
+        if (type_ := self.type) is not None:
+            data['type'] = type_.value
+
+        if path is not None:
+            with open(path, 'w', encoding = 'utf-8') as file:
+                json.dump(data, file, indent = indent, ensure_ascii = False)
 
         return data
 
     @property
+    def json(self):
+        return self.to_json()
+
+    @property
     def n_chars(self):
-        return len(json.dumps(self.data, ensure_ascii = False, indent = 2))
+        return len(json.dumps(self.json, ensure_ascii = False))
 
     @property
     def stats(self):
@@ -155,34 +176,22 @@ class Table(Item):
         return self._stats
 
     @property
-    def context(self):
-        return self.data.get('context')
-
-    @property
-    def type(self):
-        return self.data.get('type')
-
-    @property
     def content(self):
         return [
             [
-                cell.get('text')
+                cell.text
                 for cell in row
             ]
-            for row in self.data['rows']
+            for row in self.rows
         ]
 
     @property
     def next_sibling_paragraphs(self):
-        soup = self.data.get('soup')
-
-        return None if soup is None else soup.findNextSiblings('w:p')
+        return self.soup.findNextSiblings('w:p')
 
     @property
     def previous_sibling_paragraphs(self):
-        soup = self.data.get('soup')
-
-        return None if soup is None else soup.findPreviousSiblings('w:p')
+        return self.soup.findPreviousSiblings('w:p')
 
     @property
     def next_sibling_paragraph(self):
@@ -190,30 +199,26 @@ class Table(Item):
             if (text := item.text) is not None and len(text.strip()) > 0:
                 return item
 
+        return None
+
     @property
     def previous_sibling_paragraph(self):
         for item in self.previous_sibling_paragraphs:
             if (text := item.text) is not None and len(text.strip()) > 0:
                 return item
 
-    @property
-    def title(self):
-        return self.data.get('title')
-
-    @property
-    def id(self):
-        return self.data.get('id')
+        return None
 
     @property
     def isotropic(self):
         row_length = None
 
-        for row in self.data['rows']:
+        for row in self.rows:
             if row_length is None:
                 row_length = len(row)
                 continue
 
-            if len(row) != row_length or any(cell.get('text') is None for cell in row):
+            if len(row) != row_length or any(cell.text is None for cell in row):
                 return False
 
         return True
@@ -223,12 +228,10 @@ class Table(Item):
         if not self.isotropic:
             raise ValueError("Can't convert non-isotropic table into text")
 
-        data = self.data
+        lines = [] if (title := self.title) is None else [title]
 
-        lines = [] if (title := data.get('title')) is None else [title]
-
-        for row in self.data['rows']:
-            lines.append(' '.join(cell['text'] for cell in row))
+        for row in self.rows:
+            lines.append(' '.join(cell.text for cell in row))
 
         return '\n'.join(lines)
 

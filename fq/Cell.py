@@ -5,17 +5,42 @@ import uuid
 from .TableType import TableType
 
 
-class Cell:
-    def __init__(self, text: str, n_rows = 1, n_cols = 1):
+class ReferentiableObject:
+    def __init__(self, id_ = None):
+        self._id = id_
+
+    @property
+    def id(self):
+        if self._id is None:
+            self._id = str(uuid.uuid4())
+
+        return self._id
+
+
+class Cell(ReferentiableObject):
+    def __init__(self, text: str, n_rows = 1, n_cols = 1, id_: str = None):
         self.text = text
 
         self.n_rows = n_rows
         self.n_cols = n_cols
 
-        self._id = None
+        super().__init__(id_)
 
     def increment_n_rows(self):
         self.n_rows += 1
+
+    @classmethod
+    def from_json(cls, json: dict, id_to_cell: dict = None):
+        cell_id = json['id']
+
+        if (text := json.get('text')) is None:
+            cell = Placeholder(id_to_cell[cell_id])
+        else:
+            cell = cls(text, json.get('rows'), json.get('cols'), cell_id)
+
+        id_to_cell[cell_id] = cell
+
+        return cell
 
     @property
     def id(self):
@@ -114,7 +139,7 @@ class Cell:
         }
 
     @staticmethod
-    def serialize_rows(rows: list[list[Cell]], context: str = None, title: str = None, id_: str = None, table_type: TableType = None):
+    def serialize_rows(rows: list[list[Cell]]):
         data = {
             'rows': [
                 [
@@ -125,19 +150,19 @@ class Cell:
             ]
         }
 
-        if context is not None:
-            data['context'] = context
-
-        if title is not None:
-            data['title'] = title
-
-        if id_ is not None:
-            data['id'] = id_
-
-        if table_type is not None:
-            data['type'] = table_type
-
         return data
+
+    @staticmethod
+    def deserialize_rows(rows: list[list[dict]]):
+        id_to_cell = {}
+
+        return [
+            [
+                Cell.from_json(cell, id_to_cell)
+                for cell in row
+            ]
+            for row in rows
+        ]
 
 
 class Placeholder:
