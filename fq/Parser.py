@@ -7,7 +7,7 @@ from tqdm import tqdm
 from docx.api import Document
 from bs4 import BeautifulSoup
 
-from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_h1
+from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_h1, is_space
 from .util.soup import get_first_non_empty_element
 from .Table import Table
 from .TableType import TableType
@@ -45,12 +45,68 @@ def extract_id(id_, pattern, text: str):
     return id_
 
 
+def is_not_part_of_other_id(text, id_, verbose = False):
+    if verbose:
+        print('checking for table id singularity')
+
+    loc = text.find(id_)
+
+    if loc > 0:
+        prev_loc = loc - 1
+        prev_char = None if prev_loc < 0 else text[prev_loc]
+
+        next_loc = loc + len(id_)
+        next_char = None if next_loc >= len(text) else text[next_loc]
+
+        next_next_loc = next_loc + 1
+        next_next_char = None if next_next_loc >= len(text) else text[next_next_loc]
+
+        prefix_loc = prev_loc - 1
+        prefix_char = None if prefix_loc < 1 else text[prefix_loc]
+        prefix = None
+
+        if prefix_char is not None:
+            prefix = prefix_char
+
+            while prefix_loc >= 0:
+                prefix_loc -= 1
+                prefix_char = None if prefix_loc < 0 else text[prefix_loc]
+
+                if prefix_char is None or is_space(prefix_char):
+                    break
+
+                prefix += prefix_char
+
+        prefix = None if prefix is None else prefix[::-1]
+
+        if prefix is None:
+            return False
+
+        # if verbose:
+        #     print(id_, '|', text[loc:])
+        # print(text, '>>', prefix)
+        normalized_prefix = prefix.lower().strip()
+
+        return (
+            normalized_prefix.startswith('прилож') or
+            normalized_prefix.startswith('табл') or
+            normalized_prefix.startswith('форм')
+        ) and prev_char is not None and (
+            is_space(prev_char) or prev_char in '([{'
+        ) and next_char is not None and (
+            is_space(next_char) or (
+                next_char in ')]}' or
+                next_next_char is not None and next_char in ';.,' and is_space(next_next_char)
+            )
+        )
+
+
 class Parser:
     def __init__(self, context_window_size: int = 5, json_indent: int = 2):
         self.context_window_size = context_window_size
         self.json_indent = json_indent
 
-    def has_reference(self, text: str, table: Table):
+    def has_reference(self, text: str, table: Table, verbose: bool = False):
         id_ = table.id
         table_type = TableType(table.type)
 
@@ -60,6 +116,19 @@ class Parser:
             application_table_id_match = APPLICATION_TABLE_ID.fullmatch(id_)
 
         normalized_text = text.lower().strip()
+
+        # if verbose:
+        #     print(
+        #         id_ in text and is_not_part_of_other_id(text, id_, verbose = verbose),  # either there is a complete id in the text
+        #         table_type == TableType.FORM,  # either the table looks like a form
+        #         (
+        #             application_table_id_match is not None and
+        #             (
+        #                 re.search(r'\s' + application_table_id_match.group(1) + r'[^\w\s\.]', text) is not None
+        #             ) and
+        #             not text.endswith(application_table_id_match.group(1))
+        #         )  # either there is an imcomplete reference (to the application which contains the table)
+        #     )
 
         return id_ is not None and not normalized_text.startswith('табл') and (  # text doesn't look like table description
             (
@@ -75,12 +144,12 @@ class Parser:
                 )  # either table looks like a kind of application, and there is a stem 'applic' in the given text
             ) and
             (
-                id_ in text or  # either there is a complete id in the text
+                id_ in text and is_not_part_of_other_id(text, id_, verbose = verbose) or  # either there is a complete id in the text
                 table_type == TableType.FORM or  # either the table looks like a form
                 (
                     application_table_id_match is not None and
                     (
-                        re.search(r'\s' + application_table_id_match.group(1) + r'[^\w\s]', text) is not None
+                        re.search(r'\s' + application_table_id_match.group(1) + r'[^\w\s\.]', text) is not None
                     ) and
                     not text.endswith(application_table_id_match.group(1))
                 )  # either there is an imcomplete reference (to the application which contains the table)
@@ -211,7 +280,7 @@ class Parser:
             title = non_empty_paragraphs
             table_type = TableType.TABLE
 
-        return join_paragraphs(title), id_, table_type
+        return join_paragraphs(title), id_, TableType.TABLE if table_type is None else table_type
 
     def parse_file(self, source: str, get_destination: callable = None):
         document = Document(source)
@@ -226,9 +295,7 @@ class Parser:
 
         for i, table in list(enumerate(soup.find_all('w:tbl'))):
             yield Table.from_soup(
-                table, get_destination(i), *self.get_title(
-                    table.findPreviousSiblings('w:p')
-                )
+                table, get_destination(i)
             )
 
     def parse(self, source: str, destination: str):

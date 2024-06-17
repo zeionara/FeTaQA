@@ -6,6 +6,8 @@ APOS = re.compile(r'\s*&apos;\s*')
 PUNCTUATION_WITH_LEADING_SPACE = re.compile(r'\s+([.,;])')
 PUNCTUATION_WITH_TRAILING_SPACE = re.compile(r'([\[])\s+')
 
+SINGLE_SPACE = re.compile(r'\s')
+
 
 def normalize_spaces(string: str):
     return SPACE.sub(' ', string).strip()
@@ -38,3 +40,7 @@ def drop_space_around_punctuation(string: str):
 
 def is_not_empty(text: str):
     return text is not None and len(text.strip()) > 0
+
+
+def is_space(text: str):
+    return SINGLE_SPACE.fullmatch(text) is not None
