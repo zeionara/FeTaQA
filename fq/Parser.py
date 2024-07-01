@@ -200,7 +200,7 @@ class Parser:
         # full_reference_exists = False
 
         for j, paragraph in enumerate(paragraphs):
-            text = drop_space_around_punctuation(normalize_spaces(paragraph.text))
+            text = '' if paragraph.text is None else drop_space_around_punctuation(normalize_spaces(paragraph.text))  # TODO: Add better handler for None values
 
             if len(text) > 0:
                 non_empty_paragraphs.append(text)
