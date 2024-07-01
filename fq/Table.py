@@ -235,6 +235,14 @@ class Table(Item):
 
         return '\n'.join(lines)
 
+    @property
+    def as_texts(self):
+        return [
+            cell.text
+            for row in self.rows
+            for cell in row
+        ]
+
 
 class TableStats:
     def __init__(self, table: Table):
