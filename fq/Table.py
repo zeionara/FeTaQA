@@ -228,7 +228,7 @@ class Table(Item):
         if not self.isotropic:
             raise ValueError("Can't convert non-isotropic table into text")
 
-        lines = [] if (title := self.title) is None else [title]
+        lines = []  # if (title := self.title) is None else [title]
 
         for row in self.rows:
             lines.append(' '.join(cell.text for cell in row))
