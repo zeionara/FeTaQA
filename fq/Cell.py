@@ -196,4 +196,4 @@ class Placeholder:
         }
 
     def __repr__(self):
-        return f'{self.origin.text} {self.n_rows}x{self.n_cols}'
+        return f'{self.origin.text} 👻 {self.n_rows}x{self.n_cols}'

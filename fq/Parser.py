@@ -82,10 +82,28 @@ def is_not_part_of_other_id(text, id_, verbose = False):
         if prefix is None:
             return False
 
-        # if verbose:
-        #     print(id_, '|', text[loc:])
+        if verbose:
+            # print(id_, '|', text[loc:])
+            print(next_next_char)
+
         # print(text, '>>', prefix)
         normalized_prefix = prefix.lower().strip()
+
+        # print(
+        #     (
+        #         normalized_prefix.startswith('прилож') or
+        #         normalized_prefix.startswith('табл') or
+        #         normalized_prefix.startswith('форм')
+        #     ), prev_char is not None, (
+        #         is_space(prev_char) or prev_char in '([{'
+        #     ), next_char is not None, (
+        #         is_space(next_char) or (
+        #             next_char in ')]}' or
+        #             next_char in '.' and next_next_char is None or
+        #             next_next_char is not None and next_char in ';.,' and is_space(next_next_char)
+        #         )
+        #     )
+        # )
 
         return (
             normalized_prefix.startswith('прилож') or
@@ -96,6 +114,7 @@ def is_not_part_of_other_id(text, id_, verbose = False):
         ) and next_char is not None and (
             is_space(next_char) or (
                 next_char in ')]}' or
+                next_char in '.' and next_next_char is None or
                 next_next_char is not None and next_char in ';.,' and is_space(next_next_char)
             )
         )
@@ -117,18 +136,19 @@ class Parser:
 
         normalized_text = text.lower().strip()
 
-        # if verbose:
-        #     print(
-        #         id_ in text and is_not_part_of_other_id(text, id_, verbose = verbose),  # either there is a complete id in the text
-        #         table_type == TableType.FORM,  # either the table looks like a form
-        #         (
-        #             application_table_id_match is not None and
-        #             (
-        #                 re.search(r'\s' + application_table_id_match.group(1) + r'[^\w\s\.]', text) is not None
-        #             ) and
-        #             not text.endswith(application_table_id_match.group(1))
-        #         )  # either there is an imcomplete reference (to the application which contains the table)
-        #     )
+        if verbose:
+            print(is_not_part_of_other_id(text, id_, verbose = verbose))
+            # print(
+            #     id_ in text and is_not_part_of_other_id(text, id_, verbose = verbose),  # either there is a complete id in the text
+            #     table_type == TableType.FORM,  # either the table looks like a form
+            #     (
+            #         application_table_id_match is not None and
+            #         (
+            #             re.search(r'\s' + application_table_id_match.group(1) + r'[^\w\s\.]', text) is not None
+            #         ) and
+            #         not text.endswith(application_table_id_match.group(1))
+            #     )  # either there is an imcomplete reference (to the application which contains the table)
+            # )
 
         return id_ is not None and not normalized_text.startswith('табл') and (  # text doesn't look like table description
             (

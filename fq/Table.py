@@ -43,6 +43,83 @@ class Table(Item):
         self._stats = None
 
     @classmethod
+    def from_normacs_json(cls, json: dict):
+        rows = []
+
+        offset_to_cell_id = {}
+        cell_id_to_n_remaining_rows = {}
+        cell_id_to_cell = {}
+
+        for row in json['rows']:
+            row_ = []
+            offset = 0
+
+            for cell in row['cells']:
+                while True:
+                    if (spanning_cell_id := offset_to_cell_id.get(offset)) is not None:
+                        spanning_cell = cell_id_to_cell.get(spanning_cell_id)
+
+                        row_.append(spanning_cell.make_placeholder())
+
+                        n_remaining_rows = cell_id_to_n_remaining_rows.get(spanning_cell_id)
+
+                        if n_remaining_rows > 1:
+                            cell_id_to_n_remaining_rows[spanning_cell_id] = n_remaining_rows - 1
+                        else:
+                            cell_id_to_n_remaining_rows.pop(spanning_cell_id)
+                            cell_id_to_cell.pop(spanning_cell_id)
+                            offset_to_cell_id.pop(offset)
+
+                        offset += spanning_cell.n_cols
+                    else:
+                        break
+
+                inlines = []
+
+                cell_format = cell['cellFormat']
+
+                n_rows = cell_format['rowSpan']
+                n_cols = cell_format['columnSpan']
+
+                for block in cell['blocks']:
+                    for inline in block['inlines']:
+                        if 'name' in inline:  # picture
+                            pass
+                            # inlines.append(inline['name'])
+                        else:
+                            inlines.append(inline['text'])
+
+                row_.append(
+                    cell := Cell(
+                        drop_space_around_punctuation(
+                            normalize_spaces(
+                                ' '.join(inlines)
+                            )
+                        ),
+                        n_rows = n_rows,
+                        n_cols = n_cols
+                    )
+                )
+
+                if n_rows > 1:
+                    cell_id_to_cell[cell.id] = cell
+                    cell_id_to_n_remaining_rows[cell.id] = n_rows - 1
+                    offset_to_cell_id[offset] = cell.id
+
+                offset += n_cols
+
+            rows.append(row_)
+
+        # for row in rows:
+        #     print(row)
+
+        return cls(
+            soup = None,
+            rows = rows,
+            label = None
+        )
+
+    @classmethod
     def from_json(cls, json: dict, make_context: callable, label: str = None):
         if label is None:
             label = json.get('label')
