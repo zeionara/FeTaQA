@@ -13,6 +13,7 @@ from .Table import Table
 from .Paragraph import Paragraph
 from .TableType import TableType
 from .Document import Document
+from .ContextRanker import ContextRanker
 
 
 PARAGRAPH_SEP_PLACEHOLDER = '__PARAGRAPH_SEP__'
@@ -342,15 +343,21 @@ class Parser:
                         # print()
 
         document = Document(items)
+        ranker = ContextRanker(cuda = False)
 
-        print(document)
+        for table in document.tables:
+            ranker.rank(table, document.paragraphs)
 
         dd
 
-        for i, table in list(enumerate(soup.find_all('w:tbl', 'w:p'))):
-            yield Table.from_soup(
-                table, get_destination(i)
-            )
+        # print(document)
+
+        # dd
+
+        # for i, table in list(enumerate(soup.find_all('w:tbl', 'w:p'))):
+        #     yield Table.from_soup(
+        #         table, get_destination(i)
+        #     )
 
     def parse(self, source: str, destination: str):
         indent = self.json_indent

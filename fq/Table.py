@@ -14,6 +14,7 @@ from .Paragraph import INCLUDE_XML, INDENT
 
 
 NOTE_PATTERN = re.compile(r'([*]+)\s+([^*]+[^*\s])')
+END_OF_CELL_TOKEN = ' </s> '
 
 
 def get_aligned_cell(cells: list[Cell], col_offset: int):
@@ -313,9 +314,9 @@ class Table(Item):
         lines = []  # if (title := self.title) is None else [title]
 
         for row in self.rows:
-            lines.append(' '.join(cell.text for cell in row))
+            lines.append(END_OF_CELL_TOKEN.join(cell.text for cell in row))
 
-        return '\n'.join(lines)
+        return f'{END_OF_CELL_TOKEN}\n'.join(lines)
 
     @property
     def as_texts(self):
