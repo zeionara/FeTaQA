@@ -287,77 +287,10 @@ def view(source: str):
 
 
 @main.command()
-@argument('source', type = str)
-@argument('destination', type = str)
+@argument('source', type = str, default = 'assets/specs')
+@argument('destination', type = str, default = 'assets/records')
 def parse(source: str, destination: str):
     Parser().parse(source, destination)
-
-    # for source_file in tqdm(os.listdir(source)):
-    #     document = Document(os.path.join(source, source_file))
-
-    #     if not os.path.isdir(destination):
-    #         os.makedirs(destination)
-
-    #     for i, table in enumerate(document.tables):
-    #         context = get_table_context(document, table)
-
-    #         if context is None:
-    #             print(f'No context for table {i} in file {source_file}')
-
-    #         parsed_rows = []
-    #         destination_file = os.path.join(destination, f'{Path(source_file).stem}.{i}'.replace(' ', '_')) + '.json'
-
-    #         if os.path.isfile(destination_file):
-    #             continue
-
-    #         try:
-    #             rows = table.rows
-    #         except:
-    #             print(f'Error when parsing table {i} from file {source_file}. Skipping...')
-    #             continue
-
-    #         skip_table = False
-
-    #         for row in rows:
-    #             parsed_cells = []
-
-    #             try:
-    #                 cells = row.cells
-    #             except:
-    #                 print(f'Error when parsing table {i} from file {source_file}. Skipping...')
-    #                 skip_table = True
-    #                 break
-
-    #             for cell in cells:
-    #                 # print(dir(cell))
-    #                 # print(cell._element.xml)
-
-    #                 parsed_cells.append(Cell(normalize_spaces(cell.text)))
-
-    #             try:
-    #                 parsed_rows.append(Cell.merge_horizontally(parsed_cells))
-    #             except:
-    #                 print(f'Error when merging horizontally on file {source_file}')
-
-    #         if skip_table:
-    #             continue
-
-    #         try:
-    #             parsed_rows = Cell.merge_vertically(parsed_rows)
-    #         except:
-    #             print(f'Error when merging vertically on file {source_file}')
-
-    #         # for row in parsed_rows:
-    #         #     print(row)
-
-    #         # print(source)
-
-    #         # print(Cell.serialize_rows(parsed_rows))
-
-    #         # i = 0
-
-    #         with open(destination_file, 'w') as file:
-    #             json.dump(Cell.serialize_rows(parsed_rows, context), file, indent = 2, ensure_ascii = False)
 
 
 @main.command()

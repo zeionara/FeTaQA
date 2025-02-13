@@ -10,6 +10,7 @@ from .util import is_number, drop_space_around_punctuation, normalize_spaces, is
 from .Cell import Cell
 from .Item import Item
 from .TableType import TableType
+from .Paragraph import INCLUDE_XML, INDENT
 
 
 NOTE_PATTERN = re.compile(r'([*]+)\s+([^*]+[^*\s])')
@@ -38,7 +39,7 @@ class Table(Item):
         self.contexts = None
         self.title = None
         self.id = None
-        self.type = None
+        self.kind = None
 
         self._stats = None
 
@@ -129,7 +130,7 @@ class Table(Item):
         table = cls(BeautifulSoup(xml, 'lxml'), rows = rows, label = label)
 
         table.id = json.get('id')
-        table.type = TableType(json.get('type'))
+        table.kind = TableType(json.get('kind'))  # TODO: Rename TableType to TableKind
         table.title = json.get('title')
         table.contexts = [
             make_context(context)
@@ -213,11 +214,13 @@ class Table(Item):
 
         return cls(soup, rows, label)
 
-    def to_json(self, path: str = None, indent: int = 2):
+    def to_json(self, path: str = None, indent: int = INDENT):
         data = Cell.serialize_rows(self.rows)
 
         data['label'] = self.label
-        data['xml'] = str(self.soup)
+
+        if INCLUDE_XML:
+            data['xml'] = str(self.soup)
 
         if (contexts := self.contexts) is not None:
             data['contexts'] = [context.json for context in contexts]
@@ -228,8 +231,10 @@ class Table(Item):
         if (id_ := self.id) is not None:
             data['id'] = id_
 
-        if (type_ := self.type) is not None:
-            data['type'] = type_.value
+        if (kind := self.kind) is not None:
+            data['kind'] = kind.value
+
+        data['type'] = self.type_label
 
         if path is not None:
             with open(path, 'w', encoding = 'utf-8') as file:

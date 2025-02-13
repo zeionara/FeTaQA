@@ -4,13 +4,15 @@ from pathlib import Path
 from enum import Enum
 
 from tqdm import tqdm
-from docx.api import Document
+from docx.api import Document as Doc
 from bs4 import BeautifulSoup
 
-from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_h1, is_space
+from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_h1, is_space, get_paragraph_style
 from .util.soup import get_first_non_empty_element
 from .Table import Table
+from .Paragraph import Paragraph
 from .TableType import TableType
+from .Document import Document
 
 
 PARAGRAPH_SEP_PLACEHOLDER = '__PARAGRAPH_SEP__'
@@ -303,7 +305,7 @@ class Parser:
         return join_paragraphs(title), id_, TableType.TABLE if table_type is None else table_type
 
     def parse_file(self, source: str, get_destination: callable = None):
-        document = Document(source)
+        document = Doc(source)
 
         soup = BeautifulSoup(document._element.xml, 'lxml')
 
@@ -313,7 +315,39 @@ class Parser:
             def get_destination(i: int):
                 return f'{stem}.{i:04d}'.replace('-', '_') + '.json'
 
-        for i, table in list(enumerate(soup.find_all('w:tbl'))):
+        last_table_xml = None
+        i = 0
+
+        items = []
+
+        for i, element in list(enumerate(soup.find_all(re.compile(r'w:(tbl|p)')))):
+            if element.name in ('w:p', 'w:tbl'):  # if element is a table
+                if element.name == 'w:tbl':
+                    if (table := Table.from_soup(element, get_destination(i))):
+                        items.append(table)
+                        # print(table.json)
+
+                        last_table_xml = str(element)
+                else:  # if element is a paragraph
+                    if last_table_xml is not None:
+                        if str(element) in last_table_xml:
+                            continue
+                        else:
+                            last_table_xml = None
+
+                    if (paragraph := Paragraph.from_soup(element)) is not None:
+                        items.append(paragraph)
+
+                        # print(paragraph.json)
+                        # print()
+
+        document = Document(items)
+
+        print(document)
+
+        dd
+
+        for i, table in list(enumerate(soup.find_all('w:tbl', 'w:p'))):
             yield Table.from_soup(
                 table, get_destination(i)
             )
