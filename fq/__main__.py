@@ -289,8 +289,9 @@ def view(source: str):
 @main.command()
 @argument('source', type = str, default = 'assets/specs')
 @argument('destination', type = str, default = 'assets/records')
-def parse(source: str, destination: str):
-    Parser().parse(source, destination)
+@option('--cpu', '-c', is_flag = True)
+def parse(source: str, destination: str, cpu: bool):
+    Parser().parse(source, destination, cpu)
 
 
 @main.command()
