@@ -13,7 +13,7 @@ from .Table import Table
 from .Paragraph import Paragraph
 from .TableType import TableType
 from .Document import Document
-from .ContextRanker import ContextRanker
+from .ContextRanker import ContextRanker, DEFAULT_MODEL as DEFAULT_EMBEDDING_MODEL
 
 
 PARAGRAPH_SEP_PLACEHOLDER = '__PARAGRAPH_SEP__'
@@ -305,7 +305,7 @@ class Parser:
 
         return join_paragraphs(title), id_, TableType.TABLE if table_type is None else table_type
 
-    def parse_file(self, source: str, get_destination: callable = None, cpu: bool = False):
+    def parse_file(self, source: str, get_destination: callable = None, cpu: bool = False, embedding_model: str = DEFAULT_EMBEDDING_MODEL):
         document = Doc(source)
 
         soup = BeautifulSoup(document._element.xml, 'lxml')
@@ -343,7 +343,7 @@ class Parser:
                         # print()
 
         document = Document(items)
-        ranker = ContextRanker(cuda = not cpu)
+        ranker = ContextRanker(model = embedding_model, cuda = not cpu)
 
         for table in document.tables:
             ranker.rank(table, document.paragraphs)
@@ -359,7 +359,7 @@ class Parser:
         #         table, get_destination(i)
         #     )
 
-    def parse(self, source: str, destination: str, cpu: bool):
+    def parse(self, source: str, destination: str, cpu: bool, embedding_model: str = DEFAULT_EMBEDDING_MODEL):
         indent = self.json_indent
 
         if not os.path.isdir(destination):
@@ -369,6 +369,7 @@ class Parser:
             for table in self.parse_file(
                 source = os.path.join(source, source_file),
                 get_destination = lambda i: os.path.join(destination, f'{Path(source_file).stem}.{i:04d}'.replace(' ', '_')) + '.json',
-                cpu = cpu
+                cpu = cpu,
+                embedding_model = embedding_model
             ):
                 table.to_json(table.label, indent = indent)

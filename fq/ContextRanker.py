@@ -3,12 +3,14 @@ import re
 from transformers import AutoTokenizer, AutoModel
 from torch import Tensor
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 from .Table import Table
 from .Paragraph import Paragraph
 
 
 TABLE_ID_REGEX = re.compile(r'([0-9]+(\.[0-9]+)?)(\s+)?[.;]?(\s+)?$')
+DEFAULT_MODEL = 'intfloat/multilingual-e5-large-instruct'
 
 
 def to_cuda(data: dict):
@@ -29,7 +31,7 @@ def average_pool(  # compute average token embeddings for each input document
 
 
 class ContextRanker:
-    def __init__(self, model: str = 'intfloat/multilingual-e5-large-instruct', cuda: bool = True):
+    def __init__(self, model: str = DEFAULT_MODEL, cuda: bool = True):
         self.tokenizer = AutoTokenizer.from_pretrained(model)
         self.model = AutoModel.from_pretrained(model)
         self.cuda = cuda
@@ -82,6 +84,9 @@ class ContextRanker:
         text_embeddings = F.normalize(text_embeddings, p = 2, dim = 1)
 
         scores = (text_embeddings[:1] @ text_embeddings[1:].T).tolist()[0]
+
+        plt.plot(sorted(scores, reverse = True))
+        plt.savefig('assets/scores.png')
 
         scores_and_paragraphs = list(zip(scores, paragraphs))
 
