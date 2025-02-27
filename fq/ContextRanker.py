@@ -36,7 +36,7 @@ class ContextRanker:
     def __init__(self, model: str = DEFAULT_MODEL, cuda: bool = True):
         self.tokenizer = AutoTokenizer.from_pretrained(model)
         # self.model = AutoModel.from_pretrained(model)
-        self.model = AttentionTableEmbedder(model, max_length = MAX_LENGTH, cuda = cuda)
+        self.model = AttentionTableEmbedder(model, cuda = cuda)
         self.cuda = cuda
 
         # if cuda:
@@ -76,14 +76,13 @@ class ContextRanker:
 
         # print(batch_dict)
 
-        outputs = self.model(n_levels = 5, **self._tokenize_rows(table))
-        print(outputs.shape)
-
-        dd
+        table_outputs = self.model(n_levels = 5, **self._tokenize_rows(table))
+        table_outputs = F.normalize(table_outputs, p = 2, dim = 0).reshape(1, -1)
 
         input_texts = [
-            f'Instruct: Given serialized table, retrieve relevant paragraphs which make up the table context\nQuery: {table.as_text}',
-            *[paragraph.text for paragraph in paragraphs]
+            paragraph.text for paragraph in paragraphs
+            # f'Instruct: Given serialized table, retrieve relevant paragraphs which make up the table context\nQuery: {table.as_text}',
+            # *[paragraph.text for paragraph in paragraphs]
         ]
         
         if infer_table_id:
@@ -119,12 +118,12 @@ class ContextRanker:
         if self.cuda:
             batch_dict = to_cuda(batch_dict)
 
-        outputs = self.model(**batch_dict)
+        outputs = self.model._base_model(**batch_dict)
 
         text_embeddings = average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
         text_embeddings = F.normalize(text_embeddings, p = 2, dim = 1)
 
-        scores = (text_embeddings[:1] @ text_embeddings[1:].T).tolist()[0]
+        scores = (table_outputs @ text_embeddings.T).tolist()[0]
 
         plt.plot(sorted(scores, reverse = True))
         plt.savefig('assets/scores.png')
