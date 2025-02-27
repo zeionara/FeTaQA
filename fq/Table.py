@@ -269,6 +269,30 @@ class Table(Item):
         ]
 
     @property
+    def columns(self):
+        if not self.isotropic:
+            raise ValueError('Non-isotropic tables are not supported yet')
+
+        rows = list(self.content)
+
+        if len(rows) < 1:
+            raise ValueError('Empty tables are not allowed')
+
+        first_row = rows[0]
+        n_columns = len(first_row)
+        columns = []
+
+        for i in range(n_columns):
+            column = []
+
+            for row in rows:
+                column.append(row[i])
+
+            columns.append(column)
+
+        return columns
+
+    @property
     def next_sibling_paragraphs(self):
         return self.soup.findNextSiblings('w:p')
 

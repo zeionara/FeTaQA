@@ -7,10 +7,12 @@ import matplotlib.pyplot as plt
 
 from .Table import Table
 from .Paragraph import Paragraph
+from .AttentionTableEmbedder import AttentionTableEmbedder
 
 
 TABLE_ID_REGEX = re.compile(r'([0-9]+(\.[0-9]+)?)(\s+)?[.;]?(\s+)?$')
 DEFAULT_MODEL = 'intfloat/multilingual-e5-large-instruct'
+MAX_LENGTH = 512
 
 
 def to_cuda(data: dict):
@@ -33,13 +35,52 @@ def average_pool(  # compute average token embeddings for each input document
 class ContextRanker:
     def __init__(self, model: str = DEFAULT_MODEL, cuda: bool = True):
         self.tokenizer = AutoTokenizer.from_pretrained(model)
-        self.model = AutoModel.from_pretrained(model)
+        # self.model = AutoModel.from_pretrained(model)
+        self.model = AttentionTableEmbedder(model, max_length = MAX_LENGTH, cuda = cuda)
         self.cuda = cuda
 
-        if cuda:
-            self.model.to('cuda')
+        # if cuda:
+        #     self.model.to('cuda')
+
+    def _tokenize_rows(self, table: Table):
+        # print(len(table.content))
+
+        input_texts = [cell for row in table.content for cell in row]
+
+        batch_dict = self.tokenizer(input_texts, max_length = MAX_LENGTH, padding = True, truncation = True, return_tensors = 'pt')
+
+        if self.cuda:
+            batch_dict = to_cuda(batch_dict)
+
+        return batch_dict
+
+    def _tokenize_columns(self, table: Table):
+        # print(len(table.columns))
+
+        input_texts = [cell for column in table.columns for cell in column]
+
+        batch_dict = self.tokenizer(input_texts, max_length = MAX_LENGTH, padding = True, truncation = True, return_tensors = 'pt')
+
+        if self.cuda:
+            batch_dict = to_cuda(batch_dict)
+
+        return batch_dict
 
     def rank(self, table: Table, paragraphs: list[Paragraph], infer_table_id: bool = False):
+        # input_texts = [cell for row in table.content for cell in row]
+
+        # batch_dict = self.tokenizer(input_texts, max_length = 512, padding = True, truncation = True, return_tensors = 'pt')
+
+        # if self.cuda:
+        #     batch_dict = to_cuda(batch_dict)
+
+        # print(batch_dict)
+
+        outputs = self.model(n_levels = 5, **self._tokenize_rows(table))
+        print(outputs.shape)
+
+        dd
+
         input_texts = [
             f'Instruct: Given serialized table, retrieve relevant paragraphs which make up the table context\nQuery: {table.as_text}',
             *[paragraph.text for paragraph in paragraphs]
