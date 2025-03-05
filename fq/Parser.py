@@ -7,7 +7,7 @@ from tqdm import tqdm
 from docx.api import Document as Doc
 from bs4 import BeautifulSoup
 
-from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_h1, is_space, get_paragraph_style
+from .util import normalize_spaces, is_bold, has_not_fewer_dots_than, drop_space_around_punctuation, is_h1, is_space, get_paragraph_style, get_document_comments
 from .util.soup import get_first_non_empty_element
 from .Table import Table
 from .Paragraph import Paragraph
@@ -24,6 +24,21 @@ APPLICATION_ID = re.compile('[A-ZА-ЯЁ]+')
 APPLICATION_TABLE_ID = re.compile('([A-ZА-ЯЁ]+).+')
 NOT_APPLICATION_TABLE_ID = re.compile(r'\w+')
 EXTERNAL_APPLICATION_REFERENCE_PATTERN = re.compile(r'.+сп\s+[0-9.]+\.?$')
+
+# PARAGRAPH_ID = re.compile(r'\s*xmlns:[0-9a-z]*="[^"]+"')
+PARAGRAPH_ID = re.compile(r'para[Ii]d="([0-9a-fA-F]+)"')
+
+
+def get_element_id(element):
+    if (id_match := PARAGRAPH_ID.search(element)) is not None:
+        id_ = id_match.group(1)
+        return id_.lower()
+
+
+def find_comment(element, comments):
+    for el, comment in comments:
+        if get_element_id(el) == get_element_id(str(element)):
+            return comment
 
 
 def join_paragraphs(paragraphs: list):
@@ -308,6 +323,8 @@ class Parser:
     def parse_file(self, source: str, get_destination: callable = None, cpu: bool = False):
         document = Doc(source)
 
+        comments = get_document_comments(source)
+
         soup = BeautifulSoup(document._element.xml, 'lxml')
 
         if get_destination is None:
@@ -321,14 +338,23 @@ class Parser:
 
         items = []
 
+        contexts = {}
+        tables = {}
+
         for i, element in list(enumerate(soup.find_all(re.compile(r'w:(tbl|p)')))):
             if element.name in ('w:p', 'w:tbl'):  # if element is a table
+                comment = find_comment(element, comments)
+
+                # print(comment)
+
                 if element.name == 'w:tbl':
                     if (table := Table.from_soup(element, get_destination(i))):
                         items.append(table)
                         # print(table.json)
 
                         last_table_xml = str(element)
+
+                        tables[comment] = table
                 else:  # if element is a paragraph
                     if last_table_xml is not None:
                         if str(element) in last_table_xml:
@@ -339,8 +365,14 @@ class Parser:
                     if (paragraph := Paragraph.from_soup(element)) is not None:
                         items.append(paragraph)
 
-                        # print(paragraph.json)
-                        # print()
+                    if comment is not None:
+                        table_id, relevance_score = comment.split(' ')
+                        relevance_score = float(relevance_score)
+
+                        if (context := contexts.get(table_id)) is None:
+                            contexts[table_id] = [(relevance_score, paragraph)]
+                        else:
+                            context.append((relevance_score, paragraph))
 
         document = Document(items)
         ranker = ContextRanker(cuda = not cpu)
@@ -348,11 +380,9 @@ class Parser:
         for table in document.tables:
             ranker.rank(table, document.paragraphs)
 
-        dd
-
         # print(document)
 
-        # dd
+        dd
 
         # for i, table in list(enumerate(soup.find_all('w:tbl', 'w:p'))):
         #     yield Table.from_soup(
