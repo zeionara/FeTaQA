@@ -20,7 +20,7 @@ from .util import unpack, is_number  # , normalize_spaces
 # from .Cell import Cell
 from .Tables import Tables
 # from .TableTranslator import TableTranslator
-from .Parser import Parser
+from .Parser import Parser, DEFAULT_EMBEDDING_MODEL
 
 
 @group()
@@ -290,8 +290,9 @@ def view(source: str):
 @argument('source', type = str, default = 'assets/specs')
 @argument('destination', type = str, default = 'assets/records')
 @option('--cpu', '-c', is_flag = True)
-def parse(source: str, destination: str, cpu: bool):
-    Parser().parse(source, destination, cpu)
+@option('--embedding-model', '-e', type = str, default = DEFAULT_EMBEDDING_MODEL)
+def parse(source: str, destination: str, cpu: bool, embedding_model: str):
+    Parser().parse(source, destination, cpu, embedding_model)
 
 
 @main.command()

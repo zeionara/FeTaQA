@@ -27,13 +27,11 @@ echo "Using conda at $CONDA_ROOT"
 
 source "$CONDA_ROOT/etc/profile.d/conda.sh"
 
-conda create --name tables python=3.12 -y
+conda create -n tables python=3.13 -y
 conda activate tables
 
-conda install python-lsp-server -y
-conda install tqdm numpy matplotlib click -y
-
-pip install python-docx beautifulsoup4 requests scikit-learn pandas
+conda install numpy matplotlib click
+pip install tqdm python-docx beautifulsoup4 transformers torch torchvision torchaudio scikit-learn pandas
 
 # To install ghostscript see: https://ghostscript.readthedocs.io/en/gs10.03.0/Install.html and https://ghostscript.com/docs/9.55.0/Install.htm. Basically:
 #
