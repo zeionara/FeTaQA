@@ -27,6 +27,9 @@ EXTERNAL_APPLICATION_REFERENCE_PATTERN = re.compile(r'.+сп\s+[0-9.]+\.?$')
 
 # PARAGRAPH_ID = re.compile(r'\s*xmlns:[0-9a-z]*="[^"]+"')
 PARAGRAPH_ID = re.compile(r'para[Ii]d="([0-9a-fA-F]+)"')
+SEP = '<sep>'
+PARAGRAPH = '{paragraph}'
+TABLE = '{table}'
 
 
 def get_element_id(element):
@@ -374,15 +377,15 @@ class Parser:
                         else:
                             context.append((relevance_score, paragraph))
 
-        document = Document(items)
-        ranker = ContextRanker(model = embedding_model, cuda = not cpu)
+        return items
 
-        for table in document.tables:
-            ranker.rank(table, document.paragraphs)
+        # document = Document(items)
+        # ranker = ContextRanker(model = embedding_model, cuda = not cpu)
+
+        # for table in document.tables:
+        #     ranker.rank(table, document.paragraphs)
 
         # print(document)
-
-        dd
 
         # for i, table in list(enumerate(soup.find_all('w:tbl', 'w:p'))):
         #     yield Table.from_soup(
@@ -390,16 +393,22 @@ class Parser:
         #     )
 
     def parse(self, source: str, destination: str, cpu: bool, embedding_model: str = DEFAULT_EMBEDDING_MODEL):
-        indent = self.json_indent
-
         if not os.path.isdir(destination):
             os.makedirs(destination)
 
-        for source_file in tqdm(os.listdir(source)):
-            for table in self.parse_file(
+        for source_file in os.listdir(source):
+            print('Here is a document content. Each block of text contains either paragraph either table content. Adjacent blocks of texts are separated by an empty line.')
+            print(f'Each paragraph starts with label "{PARAGRAPH}" and each table starts with label "{TABLE}". Cell contents within a table row is separated with "{SEP}", and rows are separated with a linebreak.')
+            print('Your task is to rank document paragraphs by importance for understanding the table content. A paragraph is characterized by high rank (makes up context for a table), if it is essential for understanding table content.')
+
+            for item in self.parse_file(
                 source = os.path.join(source, source_file),
                 get_destination = lambda i: os.path.join(destination, f'{Path(source_file).stem}.{i:04d}'.replace(' ', '_')) + '.json',
                 cpu = cpu,
                 embedding_model = embedding_model
             ):
-                table.to_json(table.label, indent = indent)
+                if isinstance(item, Paragraph):
+                    print(PARAGRAPH, item.content)
+                if isinstance(item, Table):
+                    print(TABLE, '\n'.join([SEP.join(row) for row in item.content]))
+                print()
