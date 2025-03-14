@@ -291,8 +291,9 @@ def view(source: str):
 @argument('destination', type = str, default = 'assets/records')
 @option('--cpu', '-c', is_flag = True)
 @option('--embedding-model', '-e', type = str, default = DEFAULT_EMBEDDING_MODEL)
-def parse(source: str, destination: str, cpu: bool, embedding_model: str):
-    Parser().parse(source, destination, cpu, embedding_model)
+@option('--filter', '-f', 'paragraphs_filter', type = str)
+def parse(source: str, destination: str, cpu: bool, embedding_model: str, paragraphs_filter: str):
+    Parser().parse(source, destination, cpu, embedding_model, paragraphs_filter = None if paragraphs_filter is None else [int(id_) for id_ in paragraphs_filter.split(',')])
 
 
 @main.command()

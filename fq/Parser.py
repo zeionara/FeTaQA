@@ -31,6 +31,41 @@ SEP = '<sep>'
 PARAGRAPH = '{paragraph}'
 TABLE = '{table}'
 
+CRITERIA = (
+    'Criteria for identifying paragraph, essential for understanding table content by decreasing importance:\n'
+    'Direct Reference to the Table: Paragraph explicitly references the table by number, title, or content.\n'
+    'Terminological Correlation: Paragraph shares key terms or synonyms with the table, indicating relevance through common terminology.\n'
+    'Semantic Correlation: Paragraph content closely aligns semantically with the table content, addressing similar subjects or contexts even without explicit term overlap.\n'
+    'Generalization of Table Content: Paragraph summarizes or generalizes all or part of the table content, providing an overview or conclusions derived from the data presented.\n'
+    'Detailing Properties Relevant to Table Terms and Entities: Paragraph provides additional details about properties, characteristics, or attributes of key terms/entities'
+    'mentioned in the table essential for understanding its data.\n'
+    'Explanation of Abbreviations and Generic Terms: Paragraph clarifies abbreviations, acronyms, or general terms used within the table.\n'
+    'Description of Table Structure and Layout:'
+    'Paragraph describes the structure (rows, columns), organization, grouping of elements, headers, and relative positions of components within the table.\n'
+    'Connections to Other Document Elements: Paragraph explains relationships between table content and other document sections (e.g., other tables, appendices, standards).\n'
+    'Generalization or Summarization of Table Content: Paragraph summarizes or generalizes entire table content or significant portions thereof.\n'
+    'Distance Between Table and Paragraph: Closer proximity (fewer intervening paragraphs/tables) typically indicates higher relevance.\n'
+)
+
+STEPS = (
+    'Step-by-Step Procedure for applying these criteria to rank paragraphs:'
+    'Step 1 Identify Direct References. First identify paragraphs explicitly referencing the table by number or title. These paragraphs usually have the highest priority.\n'
+    'Step 2 Evaluate Terminological and Semantic Correlation.'
+    'Identify paragraphs containing key terms identical or synonymous to those appearing in the table.'
+    'Evaluate semantic similarity between paragraph content and table content; prioritize paragraphs clearly discussing similar topics.\n'
+    'Step 3 Identify Structural and Explanatory Context. Select paragraphs describing:\n'
+    '  - Table structure (rows, columns, sections).\n'
+    '  - Definitions or explanations of abbreviations, generic terms used in the table.\n'
+    '  - Detailed properties or characteristics of key concepts/entities listed in the table.\n'
+    'Step 4 Determine Generalizations and Summaries. Identify paragraphs summarizing overall meaning or key insights derived from the entire table or substantial parts thereof.\n'
+    'Step 5 Analyze Connections to Broader Document Context. Identify paragraphs connecting table content explicitly with:\n'
+    '  - Other tables.\n'
+    '  - Standards, regulations, appendices.\n'
+    '  - External references mentioned in the document.\n'
+    'Step 6 Consider Distance as Secondary Criterion. After applying previous steps, use paragraph proximity as a secondary criterion to fine-tune rankings:\n'
+    '  - Closer paragraphs are generally more relevant when other criteria are similar in strength.\n'
+)
+
 
 def get_element_id(element):
     if (id_match := PARAGRAPH_ID.search(element)) is not None:
@@ -392,14 +427,25 @@ class Parser:
         #         table, get_destination(i)
         #     )
 
-    def parse(self, source: str, destination: str, cpu: bool, embedding_model: str = DEFAULT_EMBEDDING_MODEL):
+    def parse(self, source: str, destination: str, cpu: bool, embedding_model: str = DEFAULT_EMBEDDING_MODEL, paragraphs_filter: list[int] = None):
         if not os.path.isdir(destination):
             os.makedirs(destination)
 
         for source_file in os.listdir(source):
-            print('Here is a document content. Each block of text contains either paragraph either table content. Adjacent blocks of texts are separated by an empty line.')
-            print(f'Each paragraph starts with label "{PARAGRAPH}" and each table starts with label "{TABLE}". Cell contents within a table row is separated with "{SEP}", and rows are separated with a linebreak.')
-            print('Your task is to rank document paragraphs by importance for understanding the table content. A paragraph is characterized by high rank (makes up context for a table), if it is essential for understanding table content.')
+            if paragraphs_filter is None:
+                print('Here is a document content. Each block of text contains either paragraph either table content. Adjacent blocks of texts are separated by an empty line.')
+                print(f'Each paragraph starts with label "{PARAGRAPH}" followed by paragraph id and each table starts with label "{TABLE}", followed by table id. Cell contents within a table row is separated with "{SEP}", and rows are separated with a linebreak.')
+                print('Your task is to rank document paragraphs by importance for understanding the table content. A paragraph is characterized by high rank (makes up context for a table), if it is essential for understanding table content.')
+                print('Output only lists of paragraph ids for each table by decreasing the order of importance for unerstanding the table content. Your response must be a json object with format {"contexts": list[{"table": int, "paragraphs": list[int]}]}')
+                print('Please, make sure that list of paragraphs for each table is complete, meaning that it contains all paragraph ids from the provided data, ordered by decreasing importance for understanding the table content')
+                print()
+                print(CRITERIA)
+                print(STEPS)
+
+            paragraph_id = 0
+            table_id = 0
+
+            relevant_paragraphs = None if paragraphs_filter is None else []
 
             for item in self.parse_file(
                 source = os.path.join(source, source_file),
@@ -408,7 +454,17 @@ class Parser:
                 embedding_model = embedding_model
             ):
                 if isinstance(item, Paragraph):
-                    print(PARAGRAPH, item.content)
-                if isinstance(item, Table):
-                    print(TABLE, '\n'.join([SEP.join(row) for row in item.content]))
-                print()
+                    paragraph_id = paragraph_id + 1
+                    if paragraphs_filter is None or paragraph_id in paragraphs_filter:
+                        if paragraphs_filter is None:
+                            print(PARAGRAPH, f'{paragraph_id:03d}', item.content)
+                            print()
+                        else:
+                            relevant_paragraphs.append((item.content, paragraphs_filter.index(paragraph_id)))
+                if isinstance(item, Table) and paragraphs_filter is None:
+                    print(TABLE, f'{(table_id := table_id + 1):03d}', '\n'.join([SEP.join(row) for row in item.content]))
+                    print()
+
+            if relevant_paragraphs is not None:
+                for paragraph in sorted(relevant_paragraphs, key = lambda item: item[1]):
+                    print(paragraph[0])
