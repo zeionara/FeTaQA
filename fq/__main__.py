@@ -1,5 +1,4 @@
 import os
-from os import environ as env
 import json
 import shutil
 # from time import sleep
@@ -27,8 +26,6 @@ from .Parser import Parser
 def main():
     pass
 
-
-BARD_API_KEY = env.get('BARD_API_KEY')
 
 QUESTION_GENERATION_TASK_DESCRIPTION = (
     'There is a table represented as a nested python list. The outer list corresponds to the list of rows, and the inner lists correspond to the lists of cells for each row. '
